@@ -1,88 +1,74 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform 
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useAuthStore } from '../src/stores/authStore';
 import api from '../src/services/api';
 
-export default function EditDebtLoanScreen() {
-  const { id } = useLocalSearchParams();
+export default function AddDebtLoanScreen() {
+  const params = useLocalSearchParams();
+  const type = (params.type as 'debt' | 'loan') || 'debt';
+  
+  const user = useAuthStore(state => state.user);
   
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
-  const [name, setName] = useState('');
+  const [name, setName] = useState(''); 
   const [date, setDate] = useState(new Date());
-  const [type, setType] = useState<'payable' | 'receivable'>('payable');
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    async function loadDebt() {
-      try {
-        const response = await api.get(`/debts/${id}`);
-        const debt = response.data;
-        setTitle(debt.title);
-        setAmount(String(debt.amount));
-        setName(debt.entity_name || '');
-        setDate(new Date(debt.due_date));
-        setType(debt.type);
-      } catch (error) {
-        Alert.alert('Erro', 'Não foi possível carregar os dados.');
-        router.back();
-      } finally {
-        setLoading(false);
-      }
+  const isDebt = type === 'debt';
+  // Cores consistentes com o resto do app
+  const themeColor = isDebt ? '#fa6238' : '#0bda5b'; 
+  const displayTitle = isDebt ? 'Nova Dívida' : 'Novo Empréstimo';
+  const nameLabel = isDebt ? 'Devo para quem?' : 'Quem me deve?';
+
+  // Handler de data (para iOS e Android funcionarem bem)
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setDate(selectedDate);
     }
-    loadDebt();
-  }, [id]);
+  };
 
-  const themeColor = type === 'payable' ? '#fa6238' : '#1773cf';
-  const nameLabel = type === 'payable' ? 'Devo para:' : 'Quem me deve:';
-
-  async function handleUpdate() {
+  async function handleSave() {
     const cleanAmount = amount.replace(',', '.');
-    if (!title || !amount || parseFloat(cleanAmount) <= 0) {
-        return Alert.alert('Atenção', 'Preencha o título e um valor válido.');
+    
+    // Validação: Valor obrigatório + (Título OU Nome obrigatórios)
+    // Isso permite usar a lógica do Backend de gerar título automático se tiver só o nome
+    if ((!title.trim() && !name.trim()) || !amount || parseFloat(cleanAmount) <= 0) {
+      return Alert.alert('Atenção', 'Informe um valor e uma descrição (Título ou Nome).');
     }
 
-    setSaving(true);
+    if (!user?.last_opened_wallet) {
+      return Alert.alert('Erro', 'Selecione uma carteira ativa antes de salvar.');
+    }
+
+    setLoading(true);
     try {
-      await api.put(`/debts/${id}`, {
+      const dbType = type === 'debt' ? 'payable' : 'receivable';
+
+      await api.post('/debts', {
+        wallet_id: user.last_opened_wallet,
+        type: dbType,
         title: title.trim(),
         entity_name: name.trim(),
         amount: parseFloat(cleanAmount),
-        due_date: date.toISOString().split('T')[0]
+        due_date: date.toISOString() // Backend trata a data corretamente
       });
+
       router.back();
-    } catch (error) {
-      Alert.alert('Erro', 'Falha ao atualizar.');
+    } catch (error: any) {
+      const msg = error.response?.data?.error || 'Falha ao salvar.';
+      Alert.alert('Erro', msg);
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   }
-
-  async function handleDelete() {
-    Alert.alert('Excluir', 'Tem certeza que deseja apagar este registro?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Excluir', style: 'destructive', onPress: async () => {
-        try {
-          await api.delete(`/debts/${id}`);
-          router.back();
-        } catch (error) {
-          Alert.alert('Erro', 'Falha ao excluir.');
-        }
-      }}
-    ]);
-  }
-
-  if (loading) return (
-    <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1773cf" />
-    </View>
-  );
 
   return (
     <KeyboardAvoidingView 
@@ -91,16 +77,13 @@ export default function EditDebtLoanScreen() {
     >
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
         
-        {/* Header com Valor e Data (Novo Padrão) */}
         <View style={[styles.header, { backgroundColor: themeColor }]}>
           <View style={styles.headerTop}>
             <TouchableOpacity onPress={() => router.back()}>
               <MaterialIcons name="arrow-back" size={24} color="#FFF" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Editar Registro</Text>
-            <TouchableOpacity onPress={handleDelete}>
-              <MaterialIcons name="delete-outline" size={24} color="#FFF" />
-            </TouchableOpacity>
+            <Text style={styles.headerTitle}>{displayTitle}</Text>
+            <View style={{ width: 24 }} />
           </View>
 
           <View style={styles.amountContainer}>
@@ -109,7 +92,10 @@ export default function EditDebtLoanScreen() {
               style={styles.amountInput}
               value={amount}
               onChangeText={setAmount}
+              placeholder="0,00"
+              placeholderTextColor="rgba(255,255,255,0.6)"
               keyboardType="numeric"
+              autoFocus
             />
           </View>
 
@@ -119,25 +105,27 @@ export default function EditDebtLoanScreen() {
           >
             <MaterialIcons name="event" size={14} color="#FFF" />
             <Text style={styles.headerDateText}>
-              Vencimento: {date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}
+              Vencimento: {date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
             </Text>
             <MaterialIcons name="arrow-drop-down" size={20} color="#FFF" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.form}>
-          <Text style={styles.label}>Título</Text>
+          <Text style={styles.label}>Título (O que é?)</Text>
           <TextInput 
             style={styles.inputCompact} 
             value={title} 
             onChangeText={setTitle} 
+            placeholder="Ex: Aluguel, Boleto Internet"
           />
 
-          <Text style={styles.label}>{nameLabel}</Text>
+          <Text style={styles.label}>{nameLabel} (Opcional)</Text>
           <TextInput 
             style={styles.inputCompact} 
             value={name} 
             onChangeText={setName} 
+            placeholder="Nome da pessoa ou empresa" 
           />
 
           {showDatePicker && (
@@ -145,24 +133,24 @@ export default function EditDebtLoanScreen() {
               value={date} 
               mode="date" 
               display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(e, d) => { setShowDatePicker(false); if(d) setDate(d); }} 
+              onChange={onDateChange} 
             />
           )}
 
           <TouchableOpacity 
             style={[styles.saveButton, { backgroundColor: themeColor }]} 
-            onPress={handleUpdate}
-            disabled={saving}
+            onPress={handleSave}
+            disabled={loading}
           >
-            {saving ? (
+            {loading ? (
               <ActivityIndicator color="#FFF" />
             ) : (
-              <Text style={styles.saveButtonText}>Salvar Alterações</Text>
+              <Text style={styles.saveButtonText}>Confirmar</Text>
             )}
           </TouchableOpacity>
-
+          
           <Text style={styles.infoText}>
-            Alterar o valor total aqui recalculará a barra de progresso na tela anterior.
+            Uma transação será criada no extrato automaticamente quando você registrar pagamentos parciais ou totais.
           </Text>
         </View>
       </ScrollView>
@@ -171,10 +159,10 @@ export default function EditDebtLoanScreen() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
   header: { paddingTop: 50, paddingBottom: 25, paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, alignItems: 'center' },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 10 },
   headerTitle: { fontSize: 16, color: '#FFF', fontWeight: 'bold' },
+  
   amountContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 15 },
   currencySymbol: { fontSize: 24, color: 'rgba(255,255,255,0.8)', marginRight: 5 },
   amountInput: { fontSize: 42, fontWeight: 'bold', color: '#FFF', minWidth: 120, textAlign: 'center' },
@@ -196,5 +184,5 @@ const styles = StyleSheet.create({
   
   saveButton: { marginTop: 35, paddingVertical: 16, borderRadius: 15, alignItems: 'center', elevation: 3 },
   saveButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  infoText: { textAlign: 'center', color: '#94a3b8', fontSize: 11, marginTop: 20, paddingHorizontal: 20 }
+  infoText: { textAlign: 'center', color: '#94a3b8', fontSize: 11, marginTop: 20, paddingHorizontal: 20, lineHeight: 16 }
 });

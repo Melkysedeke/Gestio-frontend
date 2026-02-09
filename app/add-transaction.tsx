@@ -33,7 +33,7 @@ export default function AddTransactionScreen() {
   useEffect(() => {
     async function loadCategories() {
       try {
-        const response = await api.get('/categories');
+        const response = await api.get('/categories/');
         const filtered = response.data.filter((cat: any) => cat.type === type);
         setDbCategories(filtered);
       } catch (error) {
@@ -47,18 +47,24 @@ export default function AddTransactionScreen() {
 
   async function handleSave() {
     const cleanAmount = amount.replace(',', '.');
+    
+    // Validações
     if (!amount || parseFloat(cleanAmount) <= 0) return Alert.alert('Erro', 'Valor inválido');
-    if (!description.trim()) return Alert.alert('Erro', 'Insira uma descrição');
+    // REMOVIDO: if (!description.trim()) return Alert.alert('Erro', 'Insira uma descrição'); 
     if (!selectedCategoryId) return Alert.alert('Erro', 'Selecione uma categoria');
 
     setLoading(true);
     try {
-      await api.post('/transactions', {
+      // Lógica de Fallback: Se não tiver descrição, usa o nome da categoria selecionada
+      const selectedCategory = dbCategories.find(c => c.id === selectedCategoryId);
+      const finalDescription = description.trim() || selectedCategory?.name || (type === 'expense' ? 'Despesa' : 'Receita');
+
+      await api.post('/transactions/', {
         wallet_id: user?.last_opened_wallet,
         category_id: selectedCategoryId,
         type: type,
         amount: parseFloat(cleanAmount),
-        description: description.trim(),
+        description: finalDescription, // Usa a descrição tratada
         transaction_date: date.toISOString(),
       });
       router.back();
@@ -76,7 +82,6 @@ export default function AddTransactionScreen() {
     >
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
         
-        {/* Header Compacto com Seletor de Data */}
         <View style={[styles.header, { backgroundColor: themeColor }]}>
           <View style={styles.headerTop}>
             <TouchableOpacity onPress={() => router.back()}>
@@ -101,7 +106,6 @@ export default function AddTransactionScreen() {
             />
           </View>
 
-          {/* Seletor de Data movido para o Header */}
           <TouchableOpacity 
             style={styles.headerDateButton} 
             onPress={() => setShowDatePicker(true)}
@@ -115,7 +119,8 @@ export default function AddTransactionScreen() {
         </View>
 
         <View style={styles.form}>
-          <Text style={styles.label}>Descrição</Text>
+          {/* Label atualizada para indicar opcional */}
+          <Text style={styles.label}>Descrição (Opcional)</Text>
           <TextInput
             style={styles.inputCompact}
             value={description}

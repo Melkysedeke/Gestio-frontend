@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import api from '../src/services/api';
-import { useAuthStore } from '../src/stores/authStore';
 
 interface Props {
   visible: boolean;
@@ -25,42 +24,24 @@ interface Props {
 export default function CreateWalletModal({ visible, onClose, onSuccess }: Props) {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  // 👇 Pegamos o usuário E a função de atualizar settings
-  const { user, updateUserSetting } = useAuthStore();
 
-  async function handleCreate() {
-    if (!name.trim()) return Alert.alert('Atenção', 'Dê um nome para sua carteira');
-    
-    if (!user?.id) return Alert.alert('Erro', 'Usuário não identificado.');
-
-    setLoading(true);
+  const handleCreate = async () => {
     try {
-      // 👇 Capturamos a resposta para pegar o ID da nova carteira
-      const response = await api.post('/wallets', {
-        userId: user.id,
+      setLoading(true);
+      await api.post('/wallets/', { 
         name: name,
-        balance: 0 
+        balance: 0,
+        color: '#1773cf'
       });
-      
-      const newWallet = response.data;
-
-      // 👇 O PULO DO GATO:
-      // Avisamos o App que a última carteira aberta é essa nova que acabamos de criar.
-      // Isso faz o Dashboard selecioná-la automaticamente.
-      updateUserSetting({ last_opened_wallet: newWallet.id });
-      
-      setName(''); 
-      onSuccess(); 
-      onClose();   
-
-    } catch (error) {
-      console.log(error);
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (error: any) {
+      console.error("❌ Erro ao criar:", error.response?.data || error.message);
       Alert.alert('Erro', 'Não foi possível criar a carteira.');
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
     <Modal

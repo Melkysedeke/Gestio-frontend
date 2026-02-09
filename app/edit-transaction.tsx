@@ -37,29 +37,42 @@ export default function EditTransactionScreen() {
   const type = (params.type as 'expense' | 'income') || 'expense';
   const themeColor = type === 'expense' ? '#fa6238' : '#0bda5b';
 
-  // Memo para identificar se é um registro vinculado (Dívida ou Empréstimo)
+  // --- CORREÇÃO AQUI ---
+  // Usamos .includes() para pegar tanto "Dívida: ..." quanto "Pgto Dívida: ..."
   const isDebtOrLoan = useMemo(() => {
-    return description.startsWith('Dívida:') || description.startsWith('Empréstimo:');
+    return description.includes('Dívida') || description.includes('Empréstimo');
   }, [description]);
 
-  // Carregamento de categorias com filtro restritivo para Dívidas
+  // Carregamento de categorias com filtro corrigido
   useEffect(() => {
     async function loadCategories() {
       try {
         const response = await api.get('/categories');
-        const isDebt = description.startsWith('Dívida:');
-        const isLoan = description.startsWith('Empréstimo:');
+        
+        // Verificação mais robusta
+        const isDebt = description.includes('Dívida');     // Pega "Pgto Dívida"
+        const isLoan = description.includes('Empréstimo'); // Pega "Receb. Empréstimo"
 
         const filtered = response.data.filter((cat: any) => {
-          if (isDebt) return cat.type === 'debts' && cat.name === 'Dívida';
-          if (isLoan) return cat.type === 'debts' && cat.name === 'Empréstimo';
+          // Se for Dívida, mostra SÓ a categoria de Dívida
+          if (isDebt) return cat.type === 'debts' && (cat.name === 'Dívida' || cat.name === 'Pagamento de Dívida');
+          
+          // Se for Empréstimo, mostra SÓ a categoria de Empréstimo
+          if (isLoan) return cat.type === 'debts' && (cat.name === 'Empréstimo' || cat.name === 'Recebimento de Empréstimo');
+          
+          // Caso contrário, mostra as categorias normais (Despesa ou Receita)
           return cat.type === type;
         });
 
         setDbCategories(filtered);
         
-        if ((isDebt || isLoan) && filtered.length === 1) {
-          setSelectedCategoryId(filtered[0].id);
+        // Seleção automática se só sobrar uma categoria (o que deve acontecer agora)
+        if ((isDebt || isLoan) && filtered.length > 0) {
+          // Se a categoria atual não estiver na lista filtrada, seleciona a primeira disponível
+          const currentIsAvailable = filtered.find((c: any) => c.id === selectedCategoryId);
+          if (!currentIsAvailable) {
+             setSelectedCategoryId(filtered[0].id);
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar categorias:", error);
@@ -72,7 +85,7 @@ export default function EditTransactionScreen() {
 
   // Handler para mudança de data
   const onDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios'); // No Android fecha ao selecionar
+    setShowDatePicker(Platform.OS === 'ios'); 
     if (selectedDate) {
       setDate(selectedDate);
     }
@@ -80,18 +93,23 @@ export default function EditTransactionScreen() {
 
   async function handleUpdate() {
     const cleanAmount = amount.replace(',', '.');
+    
+    // Validações
     if (!amount || parseFloat(cleanAmount) <= 0) return Alert.alert('Erro', 'Valor inválido');
-    if (!description.trim()) return Alert.alert('Erro', 'Insira uma descrição');
     if (!selectedCategoryId) return Alert.alert('Erro', 'Selecione uma categoria');
 
     setLoading(true);
     try {
+      // Lógica de Fallback para descrição
+      const selectedCategory = dbCategories.find(c => c.id === selectedCategoryId);
+      const finalDescription = description.trim() || selectedCategory?.name || (type === 'expense' ? 'Despesa' : 'Receita');
+
       await api.put(`/transactions/${params.id}`, {
         wallet_id: user?.last_opened_wallet,
         category_id: selectedCategoryId,
         type: type,
         amount: parseFloat(cleanAmount),
-        description: description.trim(),
+        description: finalDescription,
         transaction_date: date.toISOString(),
       });
       router.back();
@@ -134,7 +152,6 @@ export default function EditTransactionScreen() {
     >
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
         
-        {/* Header com Valor e Seletor de Data */}
         <View style={[styles.header, { backgroundColor: themeColor }]}>
           <View style={styles.headerTop}>
             <TouchableOpacity onPress={() => router.back()}>
@@ -170,7 +187,7 @@ export default function EditTransactionScreen() {
 
         <View style={styles.form}>
           <View style={styles.labelRow}>
-            <Text style={styles.label}>Descrição</Text>
+            <Text style={styles.label}>Descrição {isDebtOrLoan ? '(Bloqueado)' : '(Opcional)'}</Text>
             {isDebtOrLoan && (
               <View style={styles.lockBadge}>
                 <MaterialIcons name="lock" size={10} color="#94a3b8" />
@@ -233,6 +250,12 @@ export default function EditTransactionScreen() {
                 );
               })
             )}
+            {/* Fallback visual caso não encontre categoria e seja dívida */}
+            {dbCategories.length === 0 && !fetchingCategories && (
+                 <Text style={{color: '#94a3b8', fontSize: 12, marginTop: 10}}>
+                    Nenhuma categoria encontrada para este tipo de registro.
+                 </Text>
+            )}
           </View>
 
           <TouchableOpacity 
@@ -267,7 +290,7 @@ const styles = StyleSheet.create({
   headerDateText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
   form: { padding: 20 },
   labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, marginTop: 15 },
-  label: { fontSize: 13, color: '#94a3b8', fontWeight: '600' },
+  label: { fontSize: 13, color: '#94a3b8', fontWeight: '600', marginBottom: 6, marginTop: 15 },
   lockBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#f1f5f9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   lockText: { fontSize: 9, color: '#94a3b8', fontWeight: '800' },
   inputCompact: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, padding: 14, fontSize: 16, color: '#0f172a' },

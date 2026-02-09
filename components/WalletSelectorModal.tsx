@@ -24,7 +24,7 @@ export default function WalletSelectorModal({ visible, onClose, onSelect, onAddP
 
     setLoading(true);
     try {
-      const response = await api.get('/wallets', { params: { userId: user.id } });
+      const response = await api.get('/wallets/');
       setWallets(response.data);
     } catch (error) {
       console.log("Erro ao carregar carteiras:", error);

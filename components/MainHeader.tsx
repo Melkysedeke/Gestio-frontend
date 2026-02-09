@@ -1,84 +1,77 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-
-const COLORS = {
-  primary: "#1773cf",
-  bgLight: "#f6f7f8",
-  border: "#e2e8f0",
-  textMain: "#111418",
-  textGray: "#637588"
-};
-
-const BASE_URL = "http://192.168.0.114:3000";
+import { API_BASE_URL } from '../src/config/apiConfig';
+import { useThemeColor } from '../hooks/useThemeColor';
 
 interface MainHeaderProps {
   user: any;
   activeWallet: any;
   onPressSelector: () => void;
-  onPressAdd: () => void;
+  // onPressAdd?: () => void; // Removido
 }
 
 export default function MainHeader({ user, activeWallet, onPressSelector }: MainHeaderProps) {
-  const avatarUri = (() => {
+  const { colors, isDark } = useThemeColor();
+
+  const avatarUri = React.useMemo(() => {
     const avatar = user?.avatar;
-    
     if (!avatar) return null;
-    // Se já começar com http, retorna direto
-    if (avatar.startsWith('http')) {
-      return avatar;
-    }
-    // Se for só o nome do arquivo, concatena
-    return `${BASE_URL}/uploads/${avatar}`;
-  })();
-  // Log para conferirmos no terminal se a URL limpou
-  console.log("DEBUG FOTO -> URL FINAL:", avatarUri);
+    if (avatar.startsWith('http')) return avatar;
+    return `${API_BASE_URL}/uploads/${avatar}`;
+  }, [user?.avatar]);
 
   return (
-    <SafeAreaView style={styles.safeHeader} edges={['top']}>
+    <SafeAreaView 
+        style={[styles.safeHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]} 
+        edges={['top']}
+    >
       <View style={styles.headerContent}>
         
-        <TouchableOpacity style={styles.walletSelector} onPress={onPressSelector}>
-          <View style={styles.walletIconBox}>
-            <MaterialIcons name="account-balance-wallet" size={20} color={COLORS.primary} />
+        {/* ESQUERDA: Seletor de Carteira */}
+        <TouchableOpacity 
+          style={[styles.walletSelector, { backgroundColor: isDark ? colors.background : '#f8fafc', borderColor: colors.border }]} 
+          onPress={onPressSelector}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.walletIconBox, { backgroundColor: isDark ? 'rgba(56, 189, 248, 0.1)' : 'rgba(23, 115, 207, 0.08)' }]}>
+            <MaterialIcons name="account-balance-wallet" size={20} color={colors.primary} />
           </View>
+          
           <View style={styles.walletInfo}>
-            <Text style={styles.walletLabel}>Carteira Atual</Text>
+            <Text style={[styles.walletLabel, { color: colors.textSub }]}>Carteira Atual</Text>
             <View style={styles.walletNameRow}>
-              <Text style={styles.walletActive} numberOfLines={1}>
-                {activeWallet ? activeWallet.name : 'Nenhuma carteira'}
+              <Text style={[styles.walletActive, { color: colors.text }]} numberOfLines={1}>
+                {activeWallet?.name || 'Criar Carteira'}
               </Text>
-              <MaterialIcons name="expand-more" size={16} color="#9ca3af" />
+              <MaterialIcons name="expand-more" size={16} color={colors.textSub} />
             </View>
           </View>
         </TouchableOpacity>
 
+        {/* DIREITA: Botão de Perfil */}
         <TouchableOpacity 
-          style={styles.profileButton} 
-          onPress={() => router.push('/settings')}
+          style={[styles.profileButton, { borderColor: colors.border, backgroundColor: isDark ? colors.background : '#f8fafc' }]} 
+          onPress={() => router.push('/settings')} // Rota de perfil
+          activeOpacity={0.8}
         >
           {avatarUri ? (
             <Image 
-              key={avatarUri}
-              source={{ 
-                uri: avatarUri,
-                cache: 'reload' 
-              }} 
+              source={{ uri: avatarUri }} 
               style={styles.profileImage}
               resizeMode="cover"
-              onLoad={() => console.log("✅ Imagem carregada no Header!")}
-              onError={(e) => console.log("❌ ERRO NO HEADER:", e.nativeEvent.error)}
             />
           ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarInitial}>
+            <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
+              <Text style={[styles.avatarInitial, { color: colors.textSub }]}>
                 {user?.name?.charAt(0).toUpperCase() || 'U'}
               </Text>
             </View>
           )}
         </TouchableOpacity>
+
       </View>
     </SafeAreaView>
   );
@@ -86,36 +79,42 @@ export default function MainHeader({ user, activeWallet, onPressSelector }: Main
 
 const styles = StyleSheet.create({
   safeHeader: {
-    backgroundColor: '#ffffff',
-    zIndex: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9'
+    zIndex: 100, 
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
+    height: 64, 
   },
   walletSelector: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingVertical: 6,
+    borderRadius: 14, 
+    paddingVertical: 4,
     paddingHorizontal: 10,
     gap: 10,
-    maxWidth: '78%',
-    elevation: 1
+    maxWidth: '75%', // Aumentei um pouco já que removemos o botão +
   },
   walletIconBox: {
     width: 34,
     height: 34,
-    borderRadius: 8,
-    backgroundColor: 'rgba(23, 115, 207, 0.1)',
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -123,10 +122,10 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   walletLabel: {
-    fontSize: 10,
-    color: COLORS.textGray,
-    fontWeight: '500',
-    lineHeight: 12
+    fontSize: 9,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   walletNameRow: {
     flexDirection: 'row',
@@ -136,31 +135,29 @@ const styles = StyleSheet.create({
   walletActive: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: COLORS.textMain,
-    lineHeight: 16,
   },
+  
   profileButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
     overflow: 'hidden',
-    backgroundColor: '#ffffff'
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   profileImage: {
     width: '100%',
     height: '100%'
   },
   avatarPlaceholder: {
-    flex: 1,
-    backgroundColor: '#e2e8f0',
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center'
   },
   avatarInitial: {
-    fontWeight: 'bold',
-    color: '#64748b',
-    fontSize: 16
+    fontWeight: '800',
+    fontSize: 18
   },
 });

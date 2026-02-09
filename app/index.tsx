@@ -1,31 +1,25 @@
 import React, { useState } from 'react';
-// Remova o { Redirect } se ele estiver aqui sem uso
-import SplashScreen from '../src/screens/SplashScreen';
-import LoginScreen from '../src/screens/LoginScreen';
-import RegisterScreen from '../src/screens/RegisterScreen';
+import { useRouter } from 'expo-router'; // Use router imperativo
+import SplashScreen from '../components/SplashScreen';
+import { useAuthStore } from '../src/stores/authStore';
 
 export default function AppEntry() {
-  const [currentScreen, setCurrentScreen] = useState<'splash' | 'login' | 'register'>('splash');
+  const [showSplash, setShowSplash] = useState(true);
+  const { user } = useAuthStore();
+  const router = useRouter();
 
-  if (currentScreen === 'splash') {
-    return (
-      <SplashScreen 
-        onFinish={() => setCurrentScreen('login')} 
-      />
-    );
+  const handleFinish = () => {
+    setShowSplash(false);
+    if (user) {
+      router.replace('/(tabs)'); // Se já estiver logado, vai pra Home
+    } else {
+      router.replace('/login');  // Se não, vai pro Login
+    }
+  };
+
+  if (showSplash) {
+    return <SplashScreen onFinish={handleFinish} />;
   }
 
-  if (currentScreen === 'register') {
-    return (
-      <RegisterScreen 
-        onBackToLogin={() => setCurrentScreen('login')}
-      />
-    );
-  }
-
-  return (
-    <LoginScreen 
-      onNavigateToRegister={() => setCurrentScreen('register')}
-    />
-  );
+  return null; // Retorna null enquanto o router faz a troca
 }

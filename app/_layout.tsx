@@ -1,51 +1,84 @@
-import { useEffect } from 'react';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View } from 'react-native';
+import { Stack, useRouter, Slot } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { useFonts } from 'expo-font';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useAuthStore } from '../src/stores/authStore';
 
+// Importa seu componente animado
+import AnimatedSplashScreen from '../components/SplashScreen'; 
+
+// Impede que a Splash Nativa suma automaticamente
+SplashScreen.preventAutoHideAsync();
+
 export default function RootLayout() {
-  const { user, isLoading, loadStorageData } = useAuthStore();
-  const segments = useSegments();
+  const [appIsReady, setAppIsReady] = useState(false);
+  const [splashAnimationFinished, setSplashAnimationFinished] = useState(false);
+  
+  const { user, loadStorageData } = useAuthStore();
   const router = useRouter();
 
+  // Carregar Fontes
+  const [fontsLoaded] = useFonts({
+    ...MaterialIcons.font,
+  });
+
+  // 1. Inicialização (Carregar Dados + Fontes)
   useEffect(() => {
-    loadStorageData();
-  }, []);
-
-  useEffect(() => {
-    if (isLoading) return;
-
-    const currentRoute = segments[0];
-    
-    console.log("=== NAVIGATION DEBUG ===");
-    console.log("Segmento Atual:", currentRoute);
-    console.log("Usuário logado:", !!user);
-
-    const inAuthGroup = currentRoute === '(tabs)';
-    const inProfile = currentRoute === 'profile';
-    const inLoginOrRegister = currentRoute === 'login' || currentRoute === 'register';
-
-    if (!user) {
-      // Se não tem usuário e não está no login, força login
-      if (!inLoginOrRegister) {
-        console.log("Redirecionando para Login...");
-        router.replace('/login');
-      }
-    } else {
-      // Se TEM usuário e está no login/registro ou na raiz vazia, manda pro App
-      if (inLoginOrRegister || !currentRoute) {
-        console.log("Usuário autenticado, indo para Dashboard...");
-        router.replace('/(tabs)');
+    async function prepare() {
+      try {
+        await loadStorageData();
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setAppIsReady(true);
       }
     }
-  }, [user, isLoading, segments]);
+    prepare();
+  }, []);
+
+  // 2. Redirecionamento Silencioso (Acontece por baixo da Splash)
+  useEffect(() => {
+    if (appIsReady && fontsLoaded) {
+      if (user) {
+        router.replace('/(tabs)');
+      } else {
+        router.replace('/login');
+      }
+    }
+  }, [appIsReady, fontsLoaded, user]);
+
+  // 3. Callback para esconder a Splash Nativa (Branca) assim que a View montar
+  const onLayoutRootView = useCallback(async () => {
+    if (appIsReady && fontsLoaded) {
+      await SplashScreen.hideAsync();
+    }
+  }, [appIsReady, fontsLoaded]);
+
+  if (!fontsLoaded || !appIsReady) {
+    return null;
+  }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="login" />
-      <Stack.Screen name="register" />
-      <Stack.Screen name="(tabs)" />
-      {/* Adicione o profile aqui para o Stack reconhecer a rota explicitamente */}
-      <Stack.Screen name="profile" options={{ headerShown: false }} />
-    </Stack>
+    <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+      {/* O App (Stack) é renderizado SEMPRE. 
+         Assim o roteador já existe para receber o router.replace acima.
+      */}
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="register" />
+      </Stack>
+
+      {/* A Splash Animada é renderizada POR CIMA (Absolute).
+         Ela só some quando a animação termina.
+      */}
+      {!splashAnimationFinished && (
+        <AnimatedSplashScreen 
+          onFinish={() => setSplashAnimationFinished(true)} 
+        />
+      )}
+    </View>
   );
 }
