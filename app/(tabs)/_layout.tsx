@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
-import { Tabs, useSegments, router } from 'expo-router'; 
+import { Tabs, useSegments } from 'expo-router'; 
 import { MaterialIcons } from '@expo/vector-icons';
 
 // Componentes e Stores
-import ActionSheet from '../../components/ActionSheet';
+import ActionSheet from '../../components/ActionSheet'; // Ajuste o caminho se necessário
 import { useAuthStore } from '../../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor'; 
 
 // Componente do Botão Central Customizado
-const CustomTabBarButton = ({ onPress, style, focused, borderColor }: any) => (
+const CustomTabBarButton = ({ onPress, style, borderColor }: any) => (
   <TouchableOpacity
-    style={[styles.customButtonContainer, style]}
+    // Removemos 'style' daqui para evitar estilos padrões do React Navigation que possam ter background
+    style={styles.customButtonContainer}
     onPress={onPress}
     activeOpacity={0.8}
   >
@@ -39,8 +40,8 @@ export default function TabLayout() {
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: true,
-          tabBarActiveTintColor: colors.primary, // Cor Ativa Dinâmica
-          tabBarInactiveTintColor: colors.textSub, // Cor Inativa Dinâmica
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textSub,
           
           tabBarStyle: {
             display: hasWallets ? 'flex' : 'none',
@@ -48,11 +49,11 @@ export default function TabLayout() {
             bottom: 0, 
             left: 0, 
             right: 0,
-            // Fundo dinâmico (com leve transparência no claro, sólido no escuro para contraste)
             backgroundColor: isDark ? colors.card : 'rgba(255, 255, 255, 0.95)',
             borderTopWidth: 1, 
             borderTopColor: colors.border, 
-            elevation: 0,
+            elevation: 0, // Remove sombra da barra no Android
+            shadowOpacity: 0, // Remove sombra da barra no iOS
             height: Platform.OS === 'ios' ? 85 : 70,
             paddingBottom: Platform.OS === 'ios' ? 25 : 10, 
             paddingTop: 10,
@@ -85,19 +86,19 @@ export default function TabLayout() {
           name="add"
           options={{
             title: '',
-            tabBarIcon: () => null, // Remove ícone padrão
+            tabBarIcon: () => null,
             tabBarButton: (props) => (
               <CustomTabBarButton
                 {...props}
                 onPress={() => setActionSheetVisible(true)}
-                // Passamos a cor da borda para combinar com o fundo da TabBar
+                // Usamos background dinâmico para simular o "recorte"
                 borderColor={isDark ? colors.card : '#f6f7f8'} 
               />
             )
           }}
           listeners={() => ({
             tabPress: (e) => {
-              e.preventDefault(); // Impede navegação real para a rota 'add'
+              e.preventDefault();
               setActionSheetVisible(true);
             },
           })}
@@ -124,9 +125,6 @@ export default function TabLayout() {
         visible={actionSheetVisible}
         context={sheetContext}
         onClose={() => setActionSheetVisible(false)}
-        // O ActionSheet atual já usa o router internamente, 
-        // mas se a prop onNavigate ainda existir no seu componente antigo, mantenha-a.
-        // Se atualizou para a versão nova que enviei antes, pode remover onNavigate.
       />
     </>
   );
@@ -138,27 +136,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 }, // Sombra reduzida para ficar mais sutil
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 10,
-      },
-    }),
+    // REMOVIDO: Shadows/Elevation daqui. Isso causava a "caixa fantasma".
   },
   customButton: {
     width: 56, 
     height: 56, 
     borderRadius: 28, 
-    backgroundColor: '#1773cf', // Mantém azul padrão ou use colors.primary se quiser dinâmico
+    backgroundColor: '#1773cf', 
     alignItems: 'center', 
     justifyContent: 'center', 
     borderWidth: 4, 
-    // borderColor é passado via props inline para ser dinâmico
+    
+    // A sombra fica APENAS aqui (no círculo)
     shadowColor: '#1773cf', 
     shadowOffset: { width: 0, height: 4 }, 
     shadowOpacity: 0.3, 

@@ -1,33 +1,48 @@
 import React, { useState } from 'react';
 import { 
-  View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform 
+  View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar 
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuthStore } from '../src/stores/authStore';
 import api from '../src/services/api';
+import { useThemeColor } from '@/hooks/useThemeColor'; // <--- Hook de Tema
 
 export default function AddDebtLoanScreen() {
   const params = useLocalSearchParams();
   const type = (params.type as 'debt' | 'loan') || 'debt';
   
   const user = useAuthStore(state => state.user);
+  const { colors } = useThemeColor(); // <--- Cores Dinâmicas
   
   const [title, setTitle] = useState('');
-  const [amount, setAmount] = useState('');
+  // amountRaw guarda apenas os números: "1050" = 10,50
+  const [amountRaw, setAmountRaw] = useState(''); 
   const [name, setName] = useState(''); 
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const isDebt = type === 'debt';
-  // Cores consistentes com o resto do app
   const themeColor = isDebt ? '#fa6238' : '#0bda5b'; 
   const displayTitle = isDebt ? 'Nova Dívida' : 'Novo Empréstimo';
   const nameLabel = isDebt ? 'Devo para quem?' : 'Quem me deve?';
 
-  // Handler de data (para iOS e Android funcionarem bem)
+  // --- LÓGICA DE MÁSCARA MONETÁRIA (Direita para Esquerda) ---
+  const handleAmountChange = (text: string) => {
+    // 1. Remove tudo que não for número
+    const onlyNumbers = text.replace(/\D/g, "");
+    setAmountRaw(onlyNumbers);
+  };
+
+  const getFormattedAmount = () => {
+    if (!amountRaw) return "0,00";
+    const value = parseInt(amountRaw) / 100;
+    return value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  };
+  // ------------------------------------------------------------
+
   const onDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
     if (selectedDate) {
@@ -36,12 +51,11 @@ export default function AddDebtLoanScreen() {
   };
 
   async function handleSave() {
-    const cleanAmount = amount.replace(',', '.');
+    // Converte o valor bruto ("1234") para float (12.34)
+    const finalAmount = amountRaw ? parseInt(amountRaw) / 100 : 0;
     
-    // Validação: Valor obrigatório + (Título OU Nome obrigatórios)
-    // Isso permite usar a lógica do Backend de gerar título automático se tiver só o nome
-    if ((!title.trim() && !name.trim()) || !amount || parseFloat(cleanAmount) <= 0) {
-      return Alert.alert('Atenção', 'Informe um valor e uma descrição (Título ou Nome).');
+    if ((!title.trim() && !name.trim()) || finalAmount <= 0) {
+      return Alert.alert('Atenção', 'Informe um valor válido e uma descrição (Título ou Nome).');
     }
 
     if (!user?.last_opened_wallet) {
@@ -57,8 +71,8 @@ export default function AddDebtLoanScreen() {
         type: dbType,
         title: title.trim(),
         entity_name: name.trim(),
-        amount: parseFloat(cleanAmount),
-        due_date: date.toISOString() // Backend trata a data corretamente
+        amount: finalAmount, // Manda o float correto
+        due_date: date.toISOString() 
       });
 
       router.back();
@@ -73,10 +87,13 @@ export default function AddDebtLoanScreen() {
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
-      style={{ flex: 1, backgroundColor: '#FFF' }}
+      style={{ flex: 1, backgroundColor: colors.background }}
     >
+      <StatusBar backgroundColor={themeColor} barStyle="light-content" />
+      
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
         
+        {/* HEADER */}
         <View style={[styles.header, { backgroundColor: themeColor }]}>
           <View style={styles.headerTop}>
             <TouchableOpacity onPress={() => router.back()}>
@@ -90,8 +107,8 @@ export default function AddDebtLoanScreen() {
             <Text style={styles.currencySymbol}>R$</Text>
             <TextInput
               style={styles.amountInput}
-              value={amount}
-              onChangeText={setAmount}
+              value={getFormattedAmount()} // Exibe formatado
+              onChangeText={handleAmountChange} // Limpa e guarda cru
               placeholder="0,00"
               placeholderTextColor="rgba(255,255,255,0.6)"
               keyboardType="numeric"
@@ -111,21 +128,24 @@ export default function AddDebtLoanScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* FORMULÁRIO */}
         <View style={styles.form}>
-          <Text style={styles.label}>Título (O que é?)</Text>
+          <Text style={[styles.label, { color: colors.textSub }]}>Título (O que é?)</Text>
           <TextInput 
-            style={styles.inputCompact} 
+            style={[styles.inputCompact, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} 
             value={title} 
             onChangeText={setTitle} 
             placeholder="Ex: Aluguel, Boleto Internet"
+            placeholderTextColor={colors.textSub}
           />
 
-          <Text style={styles.label}>{nameLabel} (Opcional)</Text>
+          <Text style={[styles.label, { color: colors.textSub }]}>{nameLabel} (Opcional)</Text>
           <TextInput 
-            style={styles.inputCompact} 
+            style={[styles.inputCompact, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} 
             value={name} 
             onChangeText={setName} 
             placeholder="Nome da pessoa ou empresa" 
+            placeholderTextColor={colors.textSub}
           />
 
           {showDatePicker && (
@@ -149,7 +169,7 @@ export default function AddDebtLoanScreen() {
             )}
           </TouchableOpacity>
           
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoText, { color: colors.textSub }]}>
             Uma transação será criada no extrato automaticamente quando você registrar pagamentos parciais ou totais.
           </Text>
         </View>
@@ -159,7 +179,14 @@ export default function AddDebtLoanScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingTop: 50, paddingBottom: 25, paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, alignItems: 'center' },
+  header: { 
+    paddingTop: Platform.OS === 'ios' ? 60 : 50, 
+    paddingBottom: 25, 
+    paddingHorizontal: 20, 
+    borderBottomLeftRadius: 30, 
+    borderBottomRightRadius: 30, 
+    alignItems: 'center' 
+  },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 10 },
   headerTitle: { fontSize: 16, color: '#FFF', fontWeight: 'bold' },
   
@@ -179,10 +206,10 @@ const styles = StyleSheet.create({
   headerDateText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
 
   form: { padding: 24 },
-  label: { fontSize: 13, color: '#94a3b8', fontWeight: '600', marginBottom: 6, marginTop: 15 },
-  inputCompact: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, padding: 14, fontSize: 16, color: '#0f172a' },
+  label: { fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 15 },
+  inputCompact: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 16 },
   
   saveButton: { marginTop: 35, paddingVertical: 16, borderRadius: 15, alignItems: 'center', elevation: 3 },
   saveButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  infoText: { textAlign: 'center', color: '#94a3b8', fontSize: 11, marginTop: 20, paddingHorizontal: 20, lineHeight: 16 }
+  infoText: { textAlign: 'center', fontSize: 11, marginTop: 20, paddingHorizontal: 20, lineHeight: 16 }
 });

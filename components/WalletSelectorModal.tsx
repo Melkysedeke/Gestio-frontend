@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react'; // Adicionado useCallback
+import React, { useEffect, useState, useCallback } from 'react'; 
 import { 
   Modal, View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, TouchableWithoutFeedback 
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuthStore } from '../src/stores/authStore';
 import api from '../src/services/api';
+import { useThemeColor } from '@/hooks/useThemeColor'; // <--- Hook de Tema
 
 interface WalletSelectorProps {
   visible: boolean;
@@ -17,8 +18,10 @@ export default function WalletSelectorModal({ visible, onClose, onSelect, onAddP
   const user = useAuthStore(state => state.user);
   const [wallets, setWallets] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // Hook de Cores
+  const { colors, isDark } = useThemeColor();
 
-  // 1. Envolvemos a função em um useCallback para ela ser estável
   const loadWallets = useCallback(async () => {
     if (!user?.id) return;
 
@@ -44,36 +47,53 @@ export default function WalletSelectorModal({ visible, onClose, onSelect, onAddP
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
-            <View style={styles.modalContent}>
-              <Text style={styles.title}>Minhas Carteiras</Text>
+            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+              <Text style={[styles.title, { color: colors.text }]}>Minhas Carteiras</Text>
               
               {loading ? (
-                <ActivityIndicator color="#1773cf" style={{ padding: 20 }} />
+                <ActivityIndicator color={colors.primary} style={{ padding: 20 }} />
               ) : (
                 <FlatList
                   data={wallets}
                   keyExtractor={item => String(item.id)}
                   renderItem={({ item }) => {
                     const isSelected = user?.last_opened_wallet === item.id;
+                    
+                    // Lógica de cores do item
+                    const itemBackgroundColor = isSelected 
+                        ? (isDark ? 'rgba(23, 115, 207, 0.15)' : '#f0f9ff') 
+                        : (isDark ? colors.background : '#f8fafc');
+                    
+                    const itemBorderColor = isSelected ? colors.primary : colors.border;
+
                     return (
                       <TouchableOpacity 
-                        style={[styles.item, isSelected && styles.selectedItem]}
+                        style={[
+                            styles.item, 
+                            { 
+                                backgroundColor: itemBackgroundColor, 
+                                borderColor: itemBorderColor 
+                            }
+                        ]}
                         onPress={() => onSelect(item.id)}
                       >
                         <View style={styles.row}>
-                          <View style={styles.iconBg}>
-                            <MaterialIcons name="account-balance-wallet" size={24} color="#1773cf" />
+                          <View style={[
+                              styles.iconBg, 
+                              { backgroundColor: isDark ? colors.card : '#e0f2fe' } // Fundo do ícone
+                            ]}>
+                            <MaterialIcons name="account-balance-wallet" size={24} color={colors.primary} />
                           </View>
                           <View>
-                            <Text style={styles.itemName}>{item.name}</Text>
-                            <Text style={styles.itemBalance}>
+                            <Text style={[styles.itemName, { color: colors.text }]}>{item.name}</Text>
+                            <Text style={[styles.itemBalance, { color: colors.textSub }]}>
                               {Number(item.balance || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                             </Text>
                           </View>
                         </View>
                         
                         {isSelected && (
-                          <MaterialIcons name="check-circle" size={24} color="#1773cf" />
+                          <MaterialIcons name="check-circle" size={24} color={colors.primary} />
                         )}
                       </TouchableOpacity>
                     );
@@ -81,16 +101,16 @@ export default function WalletSelectorModal({ visible, onClose, onSelect, onAddP
                 />
               )}
 
-              {/* Botão Adicionar Nova - AGORA FUNCIONAL */}
+              {/* Botão Adicionar Nova */}
               <TouchableOpacity 
                 style={styles.addButton}
                 onPress={() => {
-                   onClose();    // Fecha este modal (o seletor)
-                   onAddPress(); // Chama a função de abrir o modal de criação
+                   onClose();    
+                   onAddPress(); 
                 }}
               >
-                <MaterialIcons name="add" size={20} color="#1773cf" />
-                <Text style={styles.addText}>Nova Carteira</Text>
+                <MaterialIcons name="add" size={20} color={colors.primary} />
+                <Text style={[styles.addText, { color: colors.primary }]}>Nova Carteira</Text>
               </TouchableOpacity>
             </View>
           </TouchableWithoutFeedback>
@@ -102,18 +122,17 @@ export default function WalletSelectorModal({ visible, onClose, onSelect, onAddP
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  modalContent: { backgroundColor: '#FFF', borderRadius: 20, padding: 20, maxHeight: '60%' },
-  title: { fontSize: 18, fontWeight: 'bold', color: '#0f172a', marginBottom: 16, textAlign: 'center' },
+  modalContent: { borderRadius: 20, padding: 20, maxHeight: '60%' },
+  title: { fontSize: 18, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' },
   item: { 
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', 
-    padding: 16, borderRadius: 12, marginBottom: 8, backgroundColor: '#f8fafc',
-    borderWidth: 1, borderColor: '#e2e8f0'
+    padding: 16, borderRadius: 12, marginBottom: 8,
+    borderWidth: 1
   },
-  selectedItem: { borderColor: '#1773cf', backgroundColor: '#f0f9ff' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconBg: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e0f2fe', alignItems: 'center', justifyContent: 'center' },
-  itemName: { fontSize: 16, fontWeight: '600', color: '#0f172a' },
-  itemBalance: { fontSize: 14, color: '#64748b' },
+  iconBg: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  itemName: { fontSize: 16, fontWeight: '600' },
+  itemBalance: { fontSize: 14 },
   addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, marginTop: 8, gap: 8 },
-  addText: { color: '#1773cf', fontWeight: 'bold', fontSize: 16 }
+  addText: { fontWeight: 'bold', fontSize: 16 }
 });

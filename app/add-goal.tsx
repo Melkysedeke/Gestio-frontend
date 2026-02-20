@@ -1,23 +1,37 @@
 import React, { useState } from 'react';
 import { 
-  View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform 
+  View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar 
 } from 'react-native';
 import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuthStore } from '../src/stores/authStore';
 import api from '../src/services/api';
+import { useThemeColor } from '@/hooks/useThemeColor'; // <--- Hook
 
 const THEME_COLOR = '#1773cf'; // Azul padrão para Objetivos
 
 export default function AddGoalScreen() {
   const user = useAuthStore(state => state.user);
+  const { colors } = useThemeColor(); // <--- Cores Dinâmicas
   
   const [name, setName] = useState('');
-  const [target, setTarget] = useState('');
+  const [amountRaw, setAmountRaw] = useState(''); // Guarda "15000" para R$ 150,00
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // --- MÁSCARA MONETÁRIA ---
+  const handleAmountChange = (text: string) => {
+    const onlyNumbers = text.replace(/\D/g, "");
+    setAmountRaw(onlyNumbers);
+  };
+
+  const getFormattedAmount = () => {
+    if (!amountRaw) return "0,00";
+    const value = parseInt(amountRaw) / 100;
+    return value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
@@ -25,9 +39,9 @@ export default function AddGoalScreen() {
   };
 
   async function handleSave() {
-    const cleanTarget = target.replace(',', '.');
+    const finalAmount = amountRaw ? parseInt(amountRaw) / 100 : 0;
     
-    if (!name.trim() || !target || parseFloat(cleanTarget) <= 0) {
+    if (!name.trim() || finalAmount <= 0) {
       return Alert.alert('Atenção', 'Informe um nome e um valor meta válido.');
     }
 
@@ -40,7 +54,7 @@ export default function AddGoalScreen() {
       await api.post('/goals', {
         wallet_id: user.last_opened_wallet,
         name: name.trim(),
-        target_amount: parseFloat(cleanTarget),
+        target_amount: finalAmount,
         deadline: date.toISOString(),
         color: THEME_COLOR 
       });
@@ -57,10 +71,13 @@ export default function AddGoalScreen() {
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
-      style={{ flex: 1, backgroundColor: '#FFF' }}
+      style={{ flex: 1, backgroundColor: colors.background }}
     >
+      <StatusBar backgroundColor={THEME_COLOR} barStyle="light-content" />
+      
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
         
+        {/* HEADER */}
         <View style={[styles.header, { backgroundColor: THEME_COLOR }]}>
           <View style={styles.headerTop}>
             <TouchableOpacity onPress={() => router.back()}>
@@ -74,8 +91,8 @@ export default function AddGoalScreen() {
             <Text style={styles.currencySymbol}>R$</Text>
             <TextInput
               style={styles.amountInput}
-              value={target}
-              onChangeText={setTarget}
+              value={getFormattedAmount()}
+              onChangeText={handleAmountChange}
               placeholder="0,00"
               placeholderTextColor="rgba(255,255,255,0.6)"
               keyboardType="numeric"
@@ -95,13 +112,15 @@ export default function AddGoalScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* FORMULÁRIO */}
         <View style={styles.form}>
-          <Text style={styles.label}>Nome do Objetivo</Text>
+          <Text style={[styles.label, { color: colors.textSub }]}>Nome do Objetivo</Text>
           <TextInput 
-            style={styles.inputCompact} 
+            style={[styles.inputCompact, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} 
             value={name} 
             onChangeText={setName} 
             placeholder="Ex: Viagem para Europa, PS5"
+            placeholderTextColor={colors.textSub}
           />
 
           {showDatePicker && (
@@ -125,7 +144,7 @@ export default function AddGoalScreen() {
             )}
           </TouchableOpacity>
           
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoText, { color: colors.textSub }]}>
             O valor guardado neste objetivo será deduzido do saldo disponível da sua carteira.
           </Text>
         </View>
@@ -147,10 +166,10 @@ const styles = StyleSheet.create({
   headerDateText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
 
   form: { padding: 24 },
-  label: { fontSize: 13, color: '#94a3b8', fontWeight: '600', marginBottom: 6, marginTop: 15 },
-  inputCompact: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, padding: 14, fontSize: 16, color: '#0f172a' },
+  label: { fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 15 },
+  inputCompact: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 16 },
   
   saveButton: { marginTop: 35, paddingVertical: 16, borderRadius: 15, alignItems: 'center', elevation: 3 },
   saveButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  infoText: { textAlign: 'center', color: '#94a3b8', fontSize: 11, marginTop: 20, paddingHorizontal: 20, lineHeight: 16 }
+  infoText: { textAlign: 'center', fontSize: 11, marginTop: 20, paddingHorizontal: 20, lineHeight: 16 }
 });

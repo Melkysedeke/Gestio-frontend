@@ -4,13 +4,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { API_BASE_URL } from '../src/config/apiConfig';
-import { useThemeColor } from '../hooks/useThemeColor';
+import { useThemeColor } from '@/hooks/useThemeColor'; // Ajuste o path se necessário
 
 interface MainHeaderProps {
   user: any;
   activeWallet: any;
   onPressSelector: () => void;
-  // onPressAdd?: () => void; // Removido
+  // onPressAdd removido
 }
 
 export default function MainHeader({ user, activeWallet, onPressSelector }: MainHeaderProps) {
@@ -54,7 +54,7 @@ export default function MainHeader({ user, activeWallet, onPressSelector }: Main
         {/* DIREITA: Botão de Perfil */}
         <TouchableOpacity 
           style={[styles.profileButton, { borderColor: colors.border, backgroundColor: isDark ? colors.background : '#f8fafc' }]} 
-          onPress={() => router.push('/settings')} // Rota de perfil
+          onPress={() => router.push('/settings')} 
           activeOpacity={0.8}
         >
           {avatarUri ? (
@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 10,
     gap: 10,
-    maxWidth: '75%', // Aumentei um pouco já que removemos o botão +
+    maxWidth: '75%', 
   },
   walletIconBox: {
     width: 34,

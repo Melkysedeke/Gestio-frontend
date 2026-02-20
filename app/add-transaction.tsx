@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, TextInput, TouchableOpacity, 
-  KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator 
+  KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator, StatusBar 
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -9,14 +9,17 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { useAuthStore } from '../src/stores/authStore';
 import api from '../src/services/api';
+import { useThemeColor } from '@/hooks/useThemeColor'; // <--- Hook de Tema
 
 export default function AddTransactionScreen() {
   const params = useLocalSearchParams();
   const type = (params.type as 'expense' | 'income') || 'expense';
   const user = useAuthStore(state => state.user);
+  
+  const { colors, isDark } = useThemeColor(); // <--- Cores Dinâmicas
 
   // Estados dos Inputs
-  const [amount, setAmount] = useState('');
+  const [amountRaw, setAmountRaw] = useState(''); // Guarda apenas números "1234"
   const [description, setDescription] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [date, setDate] = useState(new Date());
@@ -28,6 +31,19 @@ export default function AddTransactionScreen() {
   const [dbCategories, setDbCategories] = useState<any[]>([]);
 
   const themeColor = type === 'expense' ? '#fa6238' : '#0bda5b';
+
+  // --- MÁSCARA MONETÁRIA (Igual AddDebt) ---
+  const handleAmountChange = (text: string) => {
+    const onlyNumbers = text.replace(/\D/g, "");
+    setAmountRaw(onlyNumbers);
+  };
+
+  const getFormattedAmount = () => {
+    if (!amountRaw) return "0,00";
+    const value = parseInt(amountRaw) / 100;
+    return value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  };
+  // ----------------------------------------
 
   // --- BUSCA DINÂMICA DE CATEGORIAS ---
   useEffect(() => {
@@ -46,11 +62,10 @@ export default function AddTransactionScreen() {
   }, [type]);
 
   async function handleSave() {
-    const cleanAmount = amount.replace(',', '.');
+    const finalAmount = amountRaw ? parseInt(amountRaw) / 100 : 0;
     
     // Validações
-    if (!amount || parseFloat(cleanAmount) <= 0) return Alert.alert('Erro', 'Valor inválido');
-    // REMOVIDO: if (!description.trim()) return Alert.alert('Erro', 'Insira uma descrição'); 
+    if (finalAmount <= 0) return Alert.alert('Erro', 'Valor inválido');
     if (!selectedCategoryId) return Alert.alert('Erro', 'Selecione uma categoria');
 
     setLoading(true);
@@ -63,8 +78,8 @@ export default function AddTransactionScreen() {
         wallet_id: user?.last_opened_wallet,
         category_id: selectedCategoryId,
         type: type,
-        amount: parseFloat(cleanAmount),
-        description: finalDescription, // Usa a descrição tratada
+        amount: finalAmount,
+        description: finalDescription, 
         transaction_date: date.toISOString(),
       });
       router.back();
@@ -78,10 +93,13 @@ export default function AddTransactionScreen() {
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
-      style={{ flex: 1, backgroundColor: '#FFF' }}
+      style={{ flex: 1, backgroundColor: colors.background }}
     >
+      <StatusBar backgroundColor={themeColor} barStyle="light-content" />
+      
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
         
+        {/* HEADER */}
         <View style={[styles.header, { backgroundColor: themeColor }]}>
           <View style={styles.headerTop}>
             <TouchableOpacity onPress={() => router.back()}>
@@ -97,8 +115,8 @@ export default function AddTransactionScreen() {
             <Text style={styles.currencySymbol}>R$</Text>
             <TextInput
               style={styles.amountInput}
-              value={amount}
-              onChangeText={setAmount}
+              value={getFormattedAmount()}
+              onChangeText={handleAmountChange}
               keyboardType="numeric"
               placeholder="0,00"
               placeholderTextColor="rgba(255,255,255,0.6)"
@@ -110,7 +128,7 @@ export default function AddTransactionScreen() {
             style={styles.headerDateButton} 
             onPress={() => setShowDatePicker(true)}
           >
-            <MaterialIcons name="calendar-today" size={14} color="#FFF" />
+            <MaterialIcons name="event" size={14} color="#FFF" />
             <Text style={styles.headerDateText}>
               {date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
             </Text>
@@ -118,14 +136,15 @@ export default function AddTransactionScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* FORMULÁRIO */}
         <View style={styles.form}>
-          {/* Label atualizada para indicar opcional */}
-          <Text style={styles.label}>Descrição (Opcional)</Text>
+          <Text style={[styles.label, { color: colors.textSub }]}>Descrição (Opcional)</Text>
           <TextInput
-            style={styles.inputCompact}
+            style={[styles.inputCompact, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]}
             value={description}
             onChangeText={setDescription}
             placeholder={type === 'expense' ? 'Ex: Mercado' : 'Ex: Freelance'}
+            placeholderTextColor={colors.textSub}
           />
 
           {showDatePicker && (
@@ -137,23 +156,29 @@ export default function AddTransactionScreen() {
             />
           )}
 
-          <Text style={styles.label}>Categoria</Text>
+          <Text style={[styles.label, { color: colors.textSub }]}>Categoria</Text>
           <View style={styles.categoryGrid}>
             {fetchingCategories ? (
               <ActivityIndicator color={themeColor} style={{ marginVertical: 20, width: '100%' }} />
             ) : (
               dbCategories.map((cat) => {
                 const isSelected = selectedCategoryId === cat.id;
+                
+                // Cores dinâmicas para o item da categoria
+                const itemBg = isSelected 
+                    ? (themeColor + '15') 
+                    : (isDark ? colors.card : '#f8fafc');
+                
+                const itemBorder = isSelected 
+                    ? themeColor 
+                    : (isDark ? colors.border : 'transparent');
+
                 return (
                   <TouchableOpacity
                     key={cat.id}
                     style={[
                       styles.categoryItemSmall,
-                      isSelected && { 
-                        backgroundColor: themeColor + '15', 
-                        borderColor: themeColor,
-                        borderWidth: 1 
-                      }
+                      { backgroundColor: itemBg, borderColor: itemBorder }
                     ]}
                     onPress={() => setSelectedCategoryId(cat.id)}
                   >
@@ -164,14 +189,14 @@ export default function AddTransactionScreen() {
                       <MaterialIcons 
                         name={cat.icon || 'help-outline'} 
                         size={18} 
-                        color={isSelected ? themeColor : (cat.color || '#94a3b8')} 
+                        color={isSelected ? themeColor : (cat.color || colors.textSub)} 
                       />
                     </View>
                     <Text 
                       numberOfLines={1}
                       style={[
                         styles.categoryTextSmall, 
-                        isSelected && { color: themeColor, fontWeight: '700' }
+                        { color: isSelected ? themeColor : colors.textSub, fontWeight: isSelected ? '700' : '400' }
                       ]}
                     >
                       {cat.name}
@@ -196,9 +221,17 @@ export default function AddTransactionScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingTop: 50, paddingBottom: 25, paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, alignItems: 'center' },
+  header: { 
+    paddingTop: Platform.OS === 'ios' ? 60 : 50, 
+    paddingBottom: 25, 
+    paddingHorizontal: 20, 
+    borderBottomLeftRadius: 30, 
+    borderBottomRightRadius: 30, 
+    alignItems: 'center' 
+  },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 10 },
   headerTitle: { fontSize: 16, color: '#FFF', fontWeight: 'bold' },
+  
   amountContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 15 },
   currencySymbol: { fontSize: 24, color: 'rgba(255,255,255,0.8)', marginRight: 5 },
   amountInput: { fontSize: 42, fontWeight: 'bold', color: '#FFF', minWidth: 120, textAlign: 'center' },
@@ -215,21 +248,19 @@ const styles = StyleSheet.create({
   headerDateText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
 
   form: { padding: 20 },
-  label: { fontSize: 13, color: '#94a3b8', fontWeight: '600', marginBottom: 6, marginTop: 15 },
-  inputCompact: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, padding: 14, fontSize: 16, color: '#0f172a' },
+  label: { fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 15 },
+  inputCompact: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 16 },
   
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   categoryItemSmall: { 
     width: '23%', 
     paddingVertical: 12, 
-    backgroundColor: '#f8fafc', 
     borderRadius: 12, 
     alignItems: 'center', 
     justifyContent: 'center', 
     borderWidth: 1, 
-    borderColor: 'transparent' 
   },
-  categoryTextSmall: { fontSize: 10, marginTop: 4, color: '#64748b', textAlign: 'center' },
+  categoryTextSmall: { fontSize: 10, marginTop: 4, textAlign: 'center' },
   iconCircle: {
     width: 38,
     height: 38,

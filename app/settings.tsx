@@ -86,6 +86,7 @@ export default function SettingsScreen() {
     ]);
   };
 
+  // Helper simples para os itens do menu
   const MenuItem = ({ icon, label, isDestructive = false, onPress, showArrow = true }: any) => (
     <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
       <View style={[
@@ -117,20 +118,16 @@ export default function SettingsScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* Header Customizado Atualizado */}
+        {/* Header */}
         <SafeAreaView 
             style={[styles.headerContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]} 
             edges={['top']}
         >
           <View style={styles.headerContent}>
-            {/* Botão de Voltar na Esquerda */}
             <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
               <MaterialIcons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
-
             <Text style={[styles.headerTitle, { color: colors.text }]}>Meu Perfil</Text>
-            
-            {/* View Invisível na Direita para equilibrar o título no centro */}
             <View style={styles.headerButton} />
           </View>
         </SafeAreaView>
@@ -188,20 +185,16 @@ export default function SettingsScreen() {
             <Text style={[styles.sectionTitle, { color: colors.textSub }]}>Preferências</Text>
             <View style={[styles.card, { backgroundColor: colors.card }]}>
               
-              <View style={styles.menuItem}>
-                <View style={[styles.menuIconBox, { backgroundColor: isDark ? colors.border : '#f0f9ff' }]}>
-                  <MaterialIcons name="notifications-none" size={22} color={colors.primary} />
-                </View>
-                <Text style={[styles.menuLabel, { color: colors.text }]}>Notificações</Text>
-                <Switch 
-                    value={false} 
-                    trackColor={{ false: colors.border, true: colors.primary }} 
-                    thumbColor={"#FFF"} 
-                />
-              </View>
+              {/* ALTERAÇÃO AQUI: Agora é um MenuItem que leva para a nova página */}
+              <MenuItem 
+                icon="notifications-none" 
+                label="Notificações" 
+                onPress={() => router.push('/update-notifications')} 
+              />
               
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
               
+              {/* O Switch de Modo Escuro permanece aqui pois é simples */}
               <View style={styles.menuItem}>
                 <View style={[styles.menuIconBox, { backgroundColor: isDark ? colors.border : '#f0f9ff' }]}>
                   <MaterialIcons name="dark-mode" size={22} color={colors.primary} />
@@ -222,7 +215,7 @@ export default function SettingsScreen() {
             <View style={[styles.card, { backgroundColor: colors.card }]}>
               <MenuItem icon="lock-outline" label="Segurança e Senha" onPress={() => router.push('/update-security')} />
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
-              <MenuItem icon="help-outline" label="Ajuda e Suporte" onPress={() => {}} />
+              <MenuItem icon="help-outline" label="Ajuda e Suporte" onPress={() => router.push('/help')} />
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
               <MenuItem 
                 icon="logout" 
@@ -244,16 +237,14 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   headerContainer: { borderBottomWidth: 1 },
-  // Atualizado para usar space-between
   headerContent: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'space-between', 
     paddingVertical: 16,
-    paddingHorizontal: 20 // Adicionado padding lateral
+    paddingHorizontal: 20 
   },
   headerTitle: { fontSize: 18, fontWeight: 'bold' },
-  // Novo estilo para botão/spacer
   headerButton: { width: 40, alignItems: 'flex-start' },
   
   scrollContent: { paddingBottom: 40 },

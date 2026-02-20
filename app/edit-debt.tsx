@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform 
+  View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar 
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import api from '../src/services/api';
+import api from '../src/services/api'; 
+import { useThemeColor } from '@/hooks/useThemeColor'; 
 
-export default function EditDebtLoanScreen() {
+export default function EditDebtScreen() {
   const { id } = useLocalSearchParams();
+  const { colors } = useThemeColor(); 
   
   const [title, setTitle] = useState('');
-  const [amount, setAmount] = useState('');
+  const [amountRaw, setAmountRaw] = useState(''); 
+  
   const [name, setName] = useState('');
   const [date, setDate] = useState(new Date());
   const [type, setType] = useState<'payable' | 'receivable'>('payable');
@@ -25,9 +28,17 @@ export default function EditDebtLoanScreen() {
         const response = await api.get(`/debts/${id}`);
         const debt = response.data;
         setTitle(debt.title);
-        setAmount(String(debt.amount));
+        
+        // CONVERSÃO IMPORTANTE: Do banco (float) para Raw String (inteiro)
+        // Ex: 150.50 -> "15050"
+        const rawValue = (debt.amount * 100).toFixed(0);
+        setAmountRaw(rawValue);
+
         setName(debt.entity_name || '');
-        setDate(new Date(debt.due_date));
+        
+        const dateObj = new Date(debt.due_date);
+        setDate(new Date(dateObj.getUTCFullYear(), dateObj.getUTCMonth(), dateObj.getUTCDate()));
+        
         setType(debt.type);
       } catch (error) {
         Alert.alert('Erro', 'Não foi possível carregar os dados.');
@@ -42,9 +53,23 @@ export default function EditDebtLoanScreen() {
   const themeColor = type === 'payable' ? '#fa6238' : '#1773cf';
   const nameLabel = type === 'payable' ? 'Devo para:' : 'Quem me deve:';
 
+  // --- MÁSCARA MONETÁRIA ---
+  const handleAmountChange = (text: string) => {
+    const onlyNumbers = text.replace(/\D/g, "");
+    setAmountRaw(onlyNumbers);
+  };
+
+  const getFormattedAmount = () => {
+    if (!amountRaw) return "0,00";
+    const value = parseInt(amountRaw) / 100;
+    return value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  };
+  // -------------------------
+
   async function handleUpdate() {
-    const cleanAmount = amount.replace(',', '.');
-    if (!title || !amount || parseFloat(cleanAmount) <= 0) {
+    const finalAmount = amountRaw ? parseInt(amountRaw) / 100 : 0;
+
+    if (!title || finalAmount <= 0) {
         return Alert.alert('Atenção', 'Preencha o título e um valor válido.');
     }
 
@@ -53,7 +78,7 @@ export default function EditDebtLoanScreen() {
       await api.put(`/debts/${id}`, {
         title: title.trim(),
         entity_name: name.trim(),
-        amount: parseFloat(cleanAmount),
+        amount: finalAmount, // Envia float correto
         due_date: date.toISOString().split('T')[0]
       });
       router.back();
@@ -79,16 +104,18 @@ export default function EditDebtLoanScreen() {
   }
 
   if (loading) return (
-    <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1773cf" />
+    <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
     </View>
   );
 
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
-      style={{ flex: 1, backgroundColor: '#FFF' }}
+      style={{ flex: 1, backgroundColor: colors.background }}
     >
+      <StatusBar backgroundColor={themeColor} barStyle="light-content" />
+      
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
         
         <View style={[styles.header, { backgroundColor: themeColor }]}>
@@ -106,9 +133,10 @@ export default function EditDebtLoanScreen() {
             <Text style={styles.currencySymbol}>R$</Text>
             <TextInput
               style={styles.amountInput}
-              value={amount}
-              onChangeText={setAmount}
+              value={getFormattedAmount()} // Exibe formatado
+              onChangeText={handleAmountChange} // Processa máscara
               keyboardType="numeric"
+              placeholderTextColor="rgba(255,255,255,0.6)"
             />
           </View>
 
@@ -125,18 +153,20 @@ export default function EditDebtLoanScreen() {
         </View>
 
         <View style={styles.form}>
-          <Text style={styles.label}>Título</Text>
+          <Text style={[styles.label, { color: colors.textSub }]}>Título</Text>
           <TextInput 
-            style={styles.inputCompact} 
+            style={[styles.inputCompact, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} 
             value={title} 
             onChangeText={setTitle} 
+            placeholderTextColor={colors.textSub}
           />
 
-          <Text style={styles.label}>{nameLabel}</Text>
+          <Text style={[styles.label, { color: colors.textSub }]}>{nameLabel}</Text>
           <TextInput 
-            style={styles.inputCompact} 
+            style={[styles.inputCompact, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} 
             value={name} 
             onChangeText={setName} 
+            placeholderTextColor={colors.textSub}
           />
 
           {showDatePicker && (
@@ -160,7 +190,7 @@ export default function EditDebtLoanScreen() {
             )}
           </TouchableOpacity>
 
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoText, { color: colors.textSub }]}>
             Alterar o valor total aqui recalculará a barra de progresso na tela anterior.
           </Text>
         </View>
@@ -170,8 +200,15 @@ export default function EditDebtLoanScreen() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
-  header: { paddingTop: 50, paddingBottom: 25, paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, alignItems: 'center' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { 
+    paddingTop: Platform.OS === 'ios' ? 60 : 50, 
+    paddingBottom: 25, 
+    paddingHorizontal: 20, 
+    borderBottomLeftRadius: 30, 
+    borderBottomRightRadius: 30, 
+    alignItems: 'center' 
+  },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 10 },
   headerTitle: { fontSize: 16, color: '#FFF', fontWeight: 'bold' },
   amountContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 15 },
@@ -190,10 +227,10 @@ const styles = StyleSheet.create({
   headerDateText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
 
   form: { padding: 24 },
-  label: { fontSize: 13, color: '#94a3b8', fontWeight: '600', marginBottom: 6, marginTop: 15 },
-  inputCompact: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, padding: 14, fontSize: 16, color: '#0f172a' },
+  label: { fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 15 },
+  inputCompact: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 16 },
   
   saveButton: { marginTop: 35, paddingVertical: 16, borderRadius: 15, alignItems: 'center', elevation: 3 },
   saveButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  infoText: { textAlign: 'center', color: '#94a3b8', fontSize: 11, marginTop: 20, paddingHorizontal: 20 }
+  infoText: { textAlign: 'center', fontSize: 11, marginTop: 20, paddingHorizontal: 20 }
 });

@@ -8,23 +8,16 @@ import { useFocusEffect, router } from 'expo-router';
 
 import { useAuthStore } from '../../src/stores/authStore';
 import api from '../../src/services/api';
+import { useThemeColor } from '@/hooks/useThemeColor'; // Hook de tema
 
 import CreateWalletModal from '../../components/CreateWalletModal';
 import WalletSelectorModal from '../../components/WalletSelectorModal';
 import MainHeader from '../../components/MainHeader';
 
-const COLORS = {
-  primary: "#1773cf",
-  textMain: "#1e293b",
-  textGray: "#64748b",
-  income: "#0bda5b",
-  expense: "#fa6238",
-  border: "#e2e8f0"
-};
-
 export default function TransactionsScreen() {
   const user = useAuthStore(state => state.user);
   const updateUserSetting = useAuthStore(state => state.updateUserSetting);
+  const { colors, isDark } = useThemeColor(); // Cores dinâmicas
   
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -37,6 +30,11 @@ export default function TransactionsScreen() {
 
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [selectorVisible, setSelectorVisible] = useState(false);
+
+  // Cores fixas semânticas
+  const INCOME_COLOR = "#0bda5b";
+  const EXPENSE_COLOR = "#fa6238";
+  const THEME_PRIMARY = "#1773cf";
 
   const formatDateShort = (dateString: string) => {
     const date = new Date(dateString);
@@ -150,34 +148,34 @@ export default function TransactionsScreen() {
 
   if (loading && !refreshing) {
       return (
-        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }]}>
+          <ActivityIndicator size="large" color={THEME_PRIMARY} />
         </View>
       );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f6f7f8" />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
 
       <MainHeader 
         user={user} 
         activeWallet={activeWallet} 
         onPressSelector={() => wallets.length === 0 ? setCreateModalVisible(true) : setSelectorVisible(true)}
-        onPressAdd={() => setCreateModalVisible(true)} 
+        // onPressAdd REMOVIDO para corrigir o erro de TypeScript
       />
 
-      <View style={styles.summaryCardSlim}>
+      <View style={[styles.summaryCardSlim, { backgroundColor: colors.card, shadowColor: isDark ? '#000' : '#ccc' }]}>
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Entradas</Text>
-          <Text style={[styles.summaryValueSmall, { color: COLORS.income }]} numberOfLines={1}>
+          <Text style={[styles.summaryLabel, { color: colors.textSub }]}>Entradas</Text>
+          <Text style={[styles.summaryValueSmall, { color: INCOME_COLOR }]} numberOfLines={1}>
             {summary.income.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </Text>
         </View>
-        <View style={styles.summaryDivider} />
+        <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Saídas</Text>
-          <Text style={[styles.summaryValueSmall, { color: COLORS.expense }]} numberOfLines={1}>
+          <Text style={[styles.summaryLabel, { color: colors.textSub }]}>Saídas</Text>
+          <Text style={[styles.summaryValueSmall, { color: EXPENSE_COLOR }]} numberOfLines={1}>
             {summary.expense.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </Text>
         </View>
@@ -189,9 +187,12 @@ export default function TransactionsScreen() {
             <TouchableOpacity 
               key={f} 
               onPress={() => setActiveFilter(f as any)}
-              style={[styles.filterTabSlim, activeFilter === f && styles.filterTabActive]}
+              style={[
+                  styles.filterTabSlim, 
+                  { backgroundColor: activeFilter === f ? THEME_PRIMARY : colors.card }
+              ]}
             >
-              <Text style={[styles.filterTextSmall, activeFilter === f && styles.filterTextActive]}>
+              <Text style={[styles.filterTextSmall, { color: activeFilter === f ? '#FFF' : colors.textSub }]}>
                 {f === 'week' ? 'Semana' : f === 'current' ? 'Mês' : f === 'last' ? 'Mês Passado' : 'Tudo'}
               </Text>
             </TouchableOpacity>
@@ -203,9 +204,15 @@ export default function TransactionsScreen() {
             <TouchableOpacity 
               key={t} 
               onPress={() => setTypeFilter(t as any)}
-              style={[styles.typeBtnSlim, typeFilter === t && styles.typeBtnActive]}
+              style={[
+                  styles.typeBtnSlim, 
+                  { 
+                      backgroundColor: typeFilter === t ? (isDark ? '#334155' : '#1e293b') : colors.card,
+                      borderColor: typeFilter === t ? 'transparent' : colors.border
+                  }
+              ]}
             >
-              <Text style={[styles.typeBtnTextSmall, typeFilter === t && styles.typeBtnTextActive]}>
+              <Text style={[styles.typeBtnTextSmall, { color: typeFilter === t ? '#FFF' : colors.textSub }]}>
                 {t === 'all' ? 'Todas' : t === 'income' ? 'Receitas' : 'Despesas'}
               </Text>
             </TouchableOpacity>
@@ -218,30 +225,42 @@ export default function TransactionsScreen() {
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.listContent}
         stickySectionHeadersEnabled={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={THEME_PRIMARY} />}
         renderItem={({ item }) => {
           const isIncome = item.type === 'income';
+          
+          // Fundo do ícone adaptativo
+          const iconBg = isIncome 
+            ? (isDark ? 'rgba(11, 218, 91, 0.15)' : '#ecfdf5') 
+            : (isDark ? 'rgba(250, 98, 56, 0.15)' : '#fef2f2');
+
           return (
             <TouchableOpacity 
-                style={styles.transactionItem}
+                style={[styles.transactionItem, { backgroundColor: colors.card }]}
                 onPress={() => router.push({ pathname: '/edit-transaction', params: { ...item } })}
             >
                 <View style={styles.itemLeft}>
-                    <View style={[styles.iconCircle, { backgroundColor: isIncome ? '#ecfdf5' : '#fef2f2' }]}>
-                        <MaterialIcons name={item.category_icon || 'attach-money'} size={20} color={isIncome ? COLORS.income : COLORS.expense} />
+                    <View style={[styles.iconCircle, { backgroundColor: iconBg }]}>
+                        <MaterialIcons name={item.category_icon || 'attach-money'} size={20} color={isIncome ? INCOME_COLOR : EXPENSE_COLOR} />
                     </View>
                     <View style={styles.descContainer}>
-                        <Text style={styles.itemTitle} numberOfLines={1}>
+                        <Text style={[styles.itemTitle, { color: colors.text }]} numberOfLines={1}>
                             {item.category_name || 'Geral'}
                         </Text>
-                        <Text style={styles.itemSubtitle} numberOfLines={1}>
-                            {formatDateShort(item.transaction_date)}
-                            {item.description ? ` • ${item.description}` : ''}
-                        </Text>
+                        <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+                            <Text style={[styles.itemSubtitle, { color: colors.textSub }]}>
+                                {formatDateShort(item.transaction_date)}
+                            </Text>
+                            {item.description ? (
+                                <Text style={[styles.itemSubtitle, { color: colors.textSub, flex: 1 }]} numberOfLines={1}>
+                                    • {item.description}
+                                </Text>
+                            ) : null}
+                        </View>
                     </View>
                 </View>
                 <View style={styles.amountContainer}>
-                    <Text style={[styles.itemAmount, { color: isIncome ? COLORS.income : COLORS.expense }]} numberOfLines={1}>
+                    <Text style={[styles.itemAmount, { color: isIncome ? INCOME_COLOR : EXPENSE_COLOR }]} numberOfLines={1}>
                         {isIncome ? '+' : '-'} {Number(item.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </Text>
                 </View>
@@ -249,12 +268,12 @@ export default function TransactionsScreen() {
           );
         }}
         renderSectionHeader={({ section: { title } }) => (
-          <Text style={styles.sectionTitle}>{title}</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSub }]}>{title}</Text>
         )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <MaterialIcons name="event-note" size={50} color="#cbd5e1" />
-            <Text style={styles.emptyText}>Nenhuma transação encontrada.</Text>
+            <MaterialIcons name="event-note" size={50} color={colors.textSub} />
+            <Text style={[styles.emptyText, { color: colors.textSub }]}>Nenhuma transação encontrada.</Text>
           </View>
         }
       />
@@ -271,43 +290,37 @@ export default function TransactionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f6f7f8' },
+  container: { flex: 1 },
   
   summaryCardSlim: { 
-    flexDirection: 'row', backgroundColor: '#FFF', 
+    flexDirection: 'row', 
     marginHorizontal: 16, marginTop: 8, marginBottom: 12,
     paddingVertical: 12, borderRadius: 12, 
     ...Platform.select({ ios: { shadowOpacity: 0.03, shadowRadius: 5 }, android: { elevation: 1 } }) 
   },
   summaryItem: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
-  summaryDivider: { width: 1, backgroundColor: '#f1f5f9' },
-  summaryLabel: { fontSize: 10, color: '#94a3b8', marginBottom: 2, fontWeight: '600' },
+  summaryDivider: { width: 1 },
+  summaryLabel: { fontSize: 10, marginBottom: 2, fontWeight: '600' },
   summaryValueSmall: { fontSize: 13, fontWeight: '700' },
   
   filtersWrapper: { marginBottom: 8 },
   periodScroll: { paddingHorizontal: 16, gap: 6, marginBottom: 8 },
-  filterTabSlim: { paddingVertical: 5, paddingHorizontal: 12, borderRadius: 15, backgroundColor: '#e2e8f0' },
-  filterTabActive: { backgroundColor: COLORS.primary },
-  filterTextSmall: { fontSize: 11, color: COLORS.textGray, fontWeight: '500' },
-  filterTextActive: { color: '#FFF', fontWeight: 'bold' },
+  filterTabSlim: { paddingVertical: 5, paddingHorizontal: 12, borderRadius: 15 },
+  filterTextSmall: { fontSize: 11, fontWeight: '500' },
   
   typeRowSlim: { flexDirection: 'row', paddingHorizontal: 16, gap: 6 },
   typeBtnSlim: { 
     flex: 1, paddingVertical: 6, alignItems: 'center', 
-    borderRadius: 8, backgroundColor: '#FFF', 
-    borderWidth: 1, borderColor: '#f1f5f9' 
+    borderRadius: 8, borderWidth: 1
   },
-  typeBtnActive: { backgroundColor: '#1e293b', borderColor: '#1e293b' },
-  typeBtnTextSmall: { fontSize: 11, color: COLORS.textGray, fontWeight: '600' },
-  typeBtnTextActive: { color: '#FFF' },
+  typeBtnTextSmall: { fontSize: 11, fontWeight: '600' },
   
   listContent: { paddingHorizontal: 16, paddingBottom: 100 },
-  sectionTitle: { fontSize: 12, fontWeight: '700', color: '#cbd5e1', marginTop: 16, marginBottom: 8, marginLeft: 4 },
+  sectionTitle: { fontSize: 12, fontWeight: '700', marginTop: 16, marginBottom: 8, marginLeft: 4 },
   
-  // ESTILOS DO CARD ATUALIZADOS
   transactionItem: { 
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
-    backgroundColor: '#FFF', padding: 10, borderRadius: 16, marginBottom: 4 
+    padding: 10, borderRadius: 16, marginBottom: 4 
   },
   itemLeft: { 
     flex: 1, 
@@ -320,12 +333,12 @@ const styles = StyleSheet.create({
     flex: 1, 
     marginRight: 8 
   },
-  itemTitle: { fontSize: 14, fontWeight: '700', color: COLORS.textMain }, 
-  itemSubtitle: { fontSize: 12, color: COLORS.textGray, marginTop: 2 }, 
+  itemTitle: { fontSize: 14, fontWeight: '700' }, 
+  itemSubtitle: { fontSize: 12 }, 
   
   amountContainer: { marginLeft: 4, alignItems: 'flex-end' },
   itemAmount: { fontSize: 14, fontWeight: '900' },
   
   emptyContainer: { alignItems: 'center', marginTop: 40 },
-  emptyText: { color: '#94a3b8', marginTop: 10 }
+  emptyText: { marginTop: 10 }
 });

@@ -15,6 +15,7 @@ import { useFocusEffect, router } from 'expo-router';
 
 import api from '../../src/services/api';
 import { useAuthStore } from '../../src/stores/authStore';
+import { useThemeColor } from '@/hooks/useThemeColor'; // Hook de Tema
 
 // Componentes
 import CreateWalletModal from '../../components/CreateWalletModal';
@@ -22,22 +23,11 @@ import WalletSelectorModal from '../../components/WalletSelectorModal';
 import NoWalletState from '../../components/NoWalletState';
 import MainHeader from '../../components/MainHeader';
 
-const COLORS = {
-  primary: "#1773cf",
-  primaryDark: "#0f4d8b",
-  bgLight: "#f6f7f8",
-  bgWhite: "#ffffff",
-  textMain: "#111418",
-  textGray: "#637588",
-  expense: "#fa6238",
-  income: "#0bda5b",
-  border: "#e2e8f0"
-};
-
 export default function DashboardScreen() {
   const user = useAuthStore(state => state.user);
   const setHasWallets = useAuthStore(state => state.setHasWallets);
   const updateUserSetting = useAuthStore(state => state.updateUserSetting);
+  const { colors, isDark } = useThemeColor(); // Cores Dinâmicas
   
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -51,6 +41,12 @@ export default function DashboardScreen() {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selectorVisible, setSelectorVisible] = useState(false);
+
+  // Cores fixas semânticas
+  const INCOME_COLOR = "#0bda5b";
+  const EXPENSE_COLOR = "#fa6238";
+  const PRIMARY_COLOR = "#1773cf";
+  const PRIMARY_DARK = "#0f4d8b";
 
   const availableMonths = useMemo(() => {
     const months = [];
@@ -135,32 +131,33 @@ export default function DashboardScreen() {
 
   if (loading && !refreshing) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={PRIMARY_COLOR} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.bgWhite} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
       
       <MainHeader 
         user={user}
         activeWallet={activeWallet}
         onPressSelector={() => wallets.length === 0 ? setModalVisible(true) : setSelectorVisible(true)}
-        onPressAdd={() => setModalVisible(true)}
+        // onPressAdd REMOVIDO AQUI
       />
 
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchDashboardData(); }} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchDashboardData(); }} tintColor={PRIMARY_COLOR} />}
       >
         {wallets.length === 0 ? (
           <NoWalletState onCreateWallet={() => setModalVisible(true)} />
         ) : (
           <>
+            {/* Filtro de Meses */}
             <View style={styles.filterWrapper}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
                 {availableMonths.map((monthDate, index) => {
@@ -169,10 +166,13 @@ export default function DashboardScreen() {
                   return (
                     <TouchableOpacity 
                       key={index} 
-                      style={[styles.filterItem, isSelected && styles.filterItemActive]}
+                      style={[
+                          styles.filterItem, 
+                          { backgroundColor: isSelected ? PRIMARY_COLOR : colors.card, borderColor: isSelected ? PRIMARY_COLOR : colors.border }
+                      ]}
                       onPress={() => setSelectedMonth(monthDate)}
                     >
-                      <Text style={[styles.filterText, isSelected && styles.filterTextActive]}>
+                      <Text style={[styles.filterText, { color: isSelected ? '#FFF' : colors.textSub }]}>
                         {monthName.charAt(0).toUpperCase() + monthName.slice(1)}
                       </Text>
                     </TouchableOpacity>
@@ -181,8 +181,9 @@ export default function DashboardScreen() {
               </ScrollView>
             </View>
 
+            {/* Card de Saldo */}
             <LinearGradient
-              colors={[COLORS.primary, COLORS.primaryDark]}
+              colors={[PRIMARY_COLOR, PRIMARY_DARK]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={styles.balanceCard}
             >
@@ -192,8 +193,8 @@ export default function DashboardScreen() {
                 <View style={styles.balanceHeader}>
                   <Text style={styles.balanceLabel}>Saldo Disponível</Text>
                   <View style={[styles.growthBadge, { backgroundColor: growthPercentage >= 0 ? 'rgba(11, 218, 91, 0.2)' : 'rgba(250, 98, 56, 0.2)' }]}>
-                    <MaterialIcons name={growthPercentage >= 0 ? "trending-up" : "trending-down"} size={14} color={growthPercentage >= 0 ? COLORS.income : COLORS.expense} />
-                    <Text style={[styles.growthText, { color: growthPercentage >= 0 ? COLORS.income : COLORS.expense }]}>{Math.abs(growthPercentage).toFixed(1)}%</Text>
+                    <MaterialIcons name={growthPercentage >= 0 ? "trending-up" : "trending-down"} size={14} color={growthPercentage >= 0 ? INCOME_COLOR : EXPENSE_COLOR} />
+                    <Text style={[styles.growthText, { color: growthPercentage >= 0 ? INCOME_COLOR : EXPENSE_COLOR }]}>{Math.abs(growthPercentage).toFixed(1)}%</Text>
                   </View>
                 </View>
                 <Text style={styles.balanceValue}>{formatCurrency(activeWallet?.balance || 0)}</Text> 
@@ -204,30 +205,32 @@ export default function DashboardScreen() {
               </View>
             </LinearGradient>
 
+            {/* Stats (Entradas/Saídas) */}
             <View style={styles.statsRow}>
-               <View style={styles.statCard}>
+               <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={styles.statHeader}>
-                  <View style={[styles.statIconBox, { backgroundColor: '#ecfdf5' }]}>
-                    <MaterialIcons name="arrow-downward" size={18} color={COLORS.income} />
+                  <View style={[styles.statIconBox, { backgroundColor: isDark ? 'rgba(11, 218, 91, 0.1)' : '#ecfdf5' }]}>
+                    <MaterialIcons name="arrow-downward" size={18} color={INCOME_COLOR} />
                   </View>
-                  <Text style={styles.statLabel}>Entradas</Text>
+                  <Text style={[styles.statLabel, { color: colors.textSub }]}>Entradas</Text>
                 </View>
-                <Text style={[styles.statValue, { color: COLORS.income }]}>{formatCurrency(monthlyStats.income)}</Text>
+                <Text style={[styles.statValue, { color: INCOME_COLOR }]}>{formatCurrency(monthlyStats.income)}</Text>
               </View>
 
-              <View style={styles.statCard}>
+              <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={styles.statHeader}>
-                  <View style={[styles.statIconBox, { backgroundColor: '#fef2f2' }]}>
-                    <MaterialIcons name="arrow-upward" size={18} color={COLORS.expense} />
+                  <View style={[styles.statIconBox, { backgroundColor: isDark ? 'rgba(250, 98, 56, 0.1)' : '#fef2f2' }]}>
+                    <MaterialIcons name="arrow-upward" size={18} color={EXPENSE_COLOR} />
                   </View>
-                  <Text style={styles.statLabel}>Saídas</Text>
+                  <Text style={[styles.statLabel, { color: colors.textSub }]}>Saídas</Text>
                 </View>
-                <Text style={[styles.statValue, { color: COLORS.expense }]}>{formatCurrency(monthlyStats.expense)}</Text>
+                <Text style={[styles.statValue, { color: EXPENSE_COLOR }]}>{formatCurrency(monthlyStats.expense)}</Text>
               </View>
             </View>
 
+            {/* Atividade Recente */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Atividade Recente</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Atividade Recente</Text>
               <TouchableOpacity onPress={() => router.push('/(tabs)/transactions')}>
                 <Text style={styles.seeAllText}>Ver tudo</Text>
               </TouchableOpacity>
@@ -235,31 +238,41 @@ export default function DashboardScreen() {
 
             <View style={styles.transactionsList}>
               {recentTransactions.length === 0 ? (
-                  <Text style={{ textAlign: 'center', color: COLORS.textGray, marginTop: 10 }}>Nenhuma transação recente.</Text>
+                  <Text style={{ textAlign: 'center', color: colors.textSub, marginTop: 10 }}>Nenhuma transação recente.</Text>
               ) : (
                   recentTransactions.map((item) => {
                     const isIncome = item.type === 'income';
+                    const iconBg = isIncome 
+                        ? (isDark ? 'rgba(11, 218, 91, 0.15)' : '#ecfdf5') 
+                        : (isDark ? 'rgba(250, 98, 56, 0.15)' : '#fef2f2');
+
                     return (
                       <TouchableOpacity 
                         key={item.id} 
-                        style={styles.transactionItem}
+                        style={[styles.transactionItem, { backgroundColor: colors.card, borderColor: colors.border }]}
                         onPress={() => router.push({ pathname: '/edit-transaction', params: { ...item } })}
                       >
                         <View style={styles.transactionLeft}>
-                          <View style={[styles.transactionIcon, { backgroundColor: isIncome ? '#ecfdf5' : '#fef2f2' }]}>
-                            <MaterialIcons name={item.category_icon || 'attach-money'} size={20} color={isIncome ? COLORS.income : COLORS.expense} />
+                          <View style={[styles.transactionIcon, { backgroundColor: iconBg }]}>
+                            <MaterialIcons name={item.category_icon || 'attach-money'} size={20} color={isIncome ? INCOME_COLOR : EXPENSE_COLOR} />
                           </View>
                           <View style={{ flex: 1 }}> 
-                            <Text style={styles.transactionTitle} numberOfLines={1}>
+                            <Text style={[styles.transactionTitle, { color: colors.text }]} numberOfLines={1}>
                                 {item.category_name || 'Geral'}
                             </Text>
-                            <Text style={styles.transactionDate} numberOfLines={1}>
-                                {formatDate(item.transaction_date)}
-                                {item.description ? ` • ${item.description}` : ''}
-                            </Text>
+                            <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                                <Text style={[styles.transactionDate, { color: colors.textSub }]}>
+                                    {formatDate(item.transaction_date)}
+                                </Text>
+                                {item.description ? (
+                                    <Text style={[styles.transactionDate, { color: colors.textSub, flex: 1, marginLeft: 4 }]} numberOfLines={1}>
+                                      • {item.description}
+                                    </Text>
+                                ) : null}
+                            </View>
                           </View>
                         </View>
-                        <Text style={[styles.transactionAmount, { color: isIncome ? COLORS.income : COLORS.expense }]}>
+                        <Text style={[styles.transactionAmount, { color: isIncome ? INCOME_COLOR : EXPENSE_COLOR }]}>
                           {isIncome ? '+' : '-'} {formatCurrency(item.amount)}
                         </Text>
                       </TouchableOpacity>
@@ -278,17 +291,15 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bgLight },
+  container: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scrollContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 100, gap: 16 },
 
   // Filter
   filterWrapper: { marginBottom: 4 },
   filterScroll: { gap: 12, paddingRight: 20 },
-  filterItem: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#FFF', borderWidth: 1, borderColor: COLORS.border },
-  filterItemActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  filterText: { fontSize: 13, fontWeight: '600', color: COLORS.textGray },
-  filterTextActive: { color: '#FFF' },
+  filterItem: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  filterText: { fontSize: 13, fontWeight: '600' },
 
   // Balance Card
   balanceCard: { width: '100%', borderRadius: 24, padding: 16, overflow: 'hidden', elevation: 8 },
@@ -305,21 +316,21 @@ const styles = StyleSheet.create({
 
   // Stats
   statsRow: { flexDirection: 'row', gap: 12 },
-  statCard: { flex: 1, backgroundColor: '#FFF', borderRadius: 20, padding: 12, borderWidth: 1, borderColor: '#f1f5f9', elevation: 1 },
+  statCard: { flex: 1, borderRadius: 20, padding: 12, borderWidth: 1, elevation: 1 },
   statHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   statIconBox: { width: 32, height: 32, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  statLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textGray },
+  statLabel: { fontSize: 12, fontWeight: '600' },
   statValue: { fontSize: 18, fontWeight: '900' },
 
   // Transactions
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
-  sectionTitle: { fontSize: 18, fontWeight: '900', color: COLORS.textMain },
-  seeAllText: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
+  sectionTitle: { fontSize: 18, fontWeight: '900' },
+  seeAllText: { fontSize: 14, fontWeight: '700', color: '#1773cf' },
   transactionsList: { gap: 4 },
-  transactionItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFF', padding: 8, borderRadius: 18, borderWidth: 1, borderColor: '#f1f5f9' },
+  transactionItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 8, borderRadius: 18, borderWidth: 1 },
   transactionLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   transactionIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  transactionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textMain, maxWidth: 160 },
-  transactionDate: { fontSize: 12, color: COLORS.textGray, marginTop: 2 },
+  transactionTitle: { fontSize: 16, fontWeight: '700', maxWidth: 160 },
+  transactionDate: { fontSize: 12, marginTop: 2 },
   transactionAmount: { fontSize: 16, fontWeight: '900' }
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -8,12 +8,11 @@ import {
   TextInput, 
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   TouchableWithoutFeedback
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import api from '../src/services/api';
+import { useThemeColor } from '@/hooks/useThemeColor';
 
 interface Props {
   visible: boolean;
@@ -24,8 +23,18 @@ interface Props {
 export default function CreateWalletModal({ visible, onClose, onSuccess }: Props) {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const { colors } = useThemeColor(); 
+
+  useEffect(() => {
+    if (!visible) {
+      setName('');
+      setLoading(false);
+    }
+  }, [visible]);
 
   const handleCreate = async () => {
+    if (!name.trim()) return;
+
     try {
       setLoading(true);
       await api.post('/wallets/', { 
@@ -52,45 +61,49 @@ export default function CreateWalletModal({ visible, onClose, onSuccess }: Props
     >
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
-          {/* Evita que o clique no modal feche ele */}
           <TouchableWithoutFeedback>
-            <KeyboardAvoidingView 
-              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-              style={styles.container}
-            >
-              
-              <View style={styles.handleBar} />
-              
-              <View style={styles.header}>
-                <Text style={styles.title}>Nova Carteira</Text>
-                <TouchableOpacity onPress={onClose}>
-                  <MaterialIcons name="close" size={24} color="#64748b" />
+            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+                
+                <View style={[styles.handleBar, { backgroundColor: colors.border }]} />
+                
+                <View style={styles.header}>
+                    <Text style={[styles.title, { color: colors.text }]}>Nova Carteira</Text>
+                    <TouchableOpacity onPress={onClose}>
+                        <MaterialIcons name="close" size={24} color={colors.textSub} />
+                    </TouchableOpacity>
+                </View>
+
+                <Text style={[styles.label, { color: colors.textSub }]}>Nome da Carteira</Text>
+                
+                <TextInput 
+                    style={[
+                        styles.input, 
+                        { 
+                            backgroundColor: colors.inputBg, 
+                            borderColor: colors.border, 
+                            color: colors.text 
+                        }
+                    ]}
+                    placeholder="Ex: Nubank, Carteira Física..."
+                    placeholderTextColor={colors.textSub}
+                    value={name}
+                    onChangeText={setName}
+                    autoFocus={visible} 
+                />
+
+                <TouchableOpacity 
+                    style={[styles.createButton, { backgroundColor: colors.primary }]} 
+                    onPress={handleCreate}
+                    disabled={loading}
+                >
+                    {loading ? (
+                        <ActivityIndicator color="#FFF" />
+                    ) : (
+                        <Text style={styles.createButtonText}>Criar Carteira</Text>
+                    )}
                 </TouchableOpacity>
-              </View>
 
-              <Text style={styles.label}>Nome da Carteira</Text>
-              <TextInput 
-                style={styles.input}
-                placeholder="Ex: Nubank, Carteira Física..."
-                placeholderTextColor="#9ca3af"
-                value={name}
-                onChangeText={setName}
-                autoFocus={true} // Foca no input assim que abre
-              />
-
-              <TouchableOpacity 
-                style={styles.createButton} 
-                onPress={handleCreate}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <Text style={styles.createButtonText}>Criar Carteira</Text>
-                )}
-              </TouchableOpacity>
-
-            </KeyboardAvoidingView>
+            </View>
           </TouchableWithoutFeedback>
         </View>
       </TouchableWithoutFeedback>
@@ -104,8 +117,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)', 
     justifyContent: 'flex-end', 
   },
-  container: {
-    backgroundColor: '#FFF',
+  modalContent: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
@@ -119,7 +131,6 @@ const styles = StyleSheet.create({
   handleBar: {
     width: 40,
     height: 4,
-    backgroundColor: '#e2e8f0',
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 20,
@@ -133,26 +144,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#0f172a',
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#64748b',
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#f8fafc',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: '#0f172a',
     marginBottom: 32, 
   },
   createButton: {
-    backgroundColor: '#1773cf',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
