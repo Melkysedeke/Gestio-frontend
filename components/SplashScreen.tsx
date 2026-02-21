@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, StatusBar } from 'react-native';
 import Animated, { 
   useSharedValue, 
@@ -8,66 +8,36 @@ import Animated, {
   withDelay,
   withRepeat,
   Easing,
-  ReduceMotion
+  cancelAnimation 
 } from 'react-native-reanimated';
-import { useThemeColor } from '@/hooks/useThemeColor'; // <--- Hook de Tema
+import { useThemeColor } from '@/hooks/useThemeColor';
 
 const { width } = Dimensions.get('window');
+const LOGO_SOURCE = require('../assets/images/adaptive-icon.png');
 
-// Carregamento estático
-const LOGO_SOURCE = require('../assets/images/Gestio-removebg-preview.png');
+// Aumentei um pouquinho para dar um respiro em volta do logo
+const SPINNER_SIZE = 136; 
+const SPINNER_THICKNESS = 4; 
 
 interface Props {
   onFinish: () => void;
 }
 
 export default function SplashScreen({ onFinish }: Props) {
-  // --- Hook de Tema ---
   const { colors, isDark } = useThemeColor();
 
-  // --- Valores Animados ---
   const logoScale = useSharedValue(0.1); 
   const logoOpacity = useSharedValue(0);
-  
   const spinnerRotation = useSharedValue(0); 
   const textOpacity = useSharedValue(0);
   const textTranslateY = useSharedValue(20);
   const containerOpacity = useSharedValue(1);
   const blobScale = useSharedValue(1);
 
-  // Gatilho da Animação
   const startLogoAnimation = () => {
     logoScale.value = withSpring(1, { damping: 12, stiffness: 120 });
     logoOpacity.value = withTiming(1, { duration: 300 });
   };
-
-  useEffect(() => {
-    // 1. Animações independentes
-    spinnerRotation.value = withRepeat(
-      withTiming(360, { duration: 1500, easing: Easing.linear, reduceMotion: ReduceMotion.Never }), -1 
-    );
-    
-    textOpacity.value = withDelay(400, withTiming(1, { duration: 800, reduceMotion: ReduceMotion.Never }));
-    textTranslateY.value = withDelay(400, withTiming(0, { duration: 800, easing: Easing.out(Easing.exp), reduceMotion: ReduceMotion.Never }));
-    blobScale.value = withRepeat(withTiming(1.1, { duration: 3000, easing: Easing.inOut(Easing.ease), reduceMotion: ReduceMotion.Never }), -1, true);
-
-    // 2. Fallback de Segurança
-    const fallbackTimeout = setTimeout(() => {
-        if (logoOpacity.value === 0) {
-            startLogoAnimation();
-        }
-    }, 500);
-
-    // 3. Saída
-    const exitTimeout = setTimeout(() => {
-      startExitAnimation();
-    }, 3000);
-
-    return () => {
-        clearTimeout(exitTimeout);
-        clearTimeout(fallbackTimeout);
-    };
-  }, []);
 
   const startExitAnimation = () => {
     containerOpacity.value = withTiming(0, { duration: 500 });
@@ -75,59 +45,99 @@ export default function SplashScreen({ onFinish }: Props) {
 
     setTimeout(() => {
       onFinish();
-    }, 500);
+    }, 510); 
   };
 
-  // --- Estilos Animados ---
+  useEffect(() => {
+    // Rotação linear infinita (leva 1.2 segundos para dar uma volta completa)
+    spinnerRotation.value = withRepeat(
+      withTiming(360, { duration: 1200, easing: Easing.linear }), 
+      -1, 
+      false 
+    );
+    
+    textOpacity.value = withDelay(400, withTiming(1, { duration: 800 }));
+    textTranslateY.value = withDelay(400, withTiming(0, { duration: 800, easing: Easing.out(Easing.exp) }));
+    blobScale.value = withRepeat(withTiming(1.1, { duration: 3000, easing: Easing.inOut(Easing.ease) }), -1, true);
+
+    const logoTimeout = setTimeout(startLogoAnimation, 500);
+    const exitTimeout = setTimeout(startExitAnimation, 3000);
+
+    return () => {
+      clearTimeout(logoTimeout);
+      clearTimeout(exitTimeout);
+      cancelAnimation(logoScale);
+      cancelAnimation(logoOpacity);
+      cancelAnimation(spinnerRotation);
+      cancelAnimation(textOpacity);
+      cancelAnimation(textTranslateY);
+      cancelAnimation(containerOpacity);
+      cancelAnimation(blobScale);
+    };
+  }, []);
+
   const logoPopStyle = useAnimatedStyle(() => ({ 
     transform: [{ scale: logoScale.value }],
     opacity: logoOpacity.value
   }));
 
-  const spinnerRotateStyle = useAnimatedStyle(() => ({ transform: [{ rotateZ: `${spinnerRotation.value}deg` }] }));
-  const textStyle = useAnimatedStyle(() => ({ opacity: textOpacity.value, transform: [{ translateY: textTranslateY.value }] }));
-  const containerStyle = useAnimatedStyle(() => ({ opacity: containerOpacity.value }));
-  const blobStyle = useAnimatedStyle(() => ({ transform: [{ scale: blobScale.value }] }));
+  // O container quadrado principal que vai rodar perfeitamente no eixo
+  const spinnerRotateStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spinnerRotation.value}deg` }]
+  }));
+
+  const textStyle = useAnimatedStyle(() => ({ 
+    opacity: textOpacity.value, 
+    transform: [{ translateY: textTranslateY.value }] 
+  }));
+
+  const containerStyle = useAnimatedStyle(() => ({ 
+    opacity: containerOpacity.value 
+  }));
+
+  const blobStyle = useAnimatedStyle(() => ({ 
+    transform: [{ scale: blobScale.value }] 
+  }));
 
   return (
-    <Animated.View style={[styles.container, { backgroundColor: colors.background }, containerStyle]}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
+    <Animated.View style={[styles.container, { backgroundColor: colors.background || '#FFFFFF' }, containerStyle]}>
+      <StatusBar 
+        barStyle={isDark ? "light-content" : "dark-content"} 
+        backgroundColor={colors.background || '#FFFFFF'} 
+      />
       
-      {/* Blobs de fundo com cor dinâmica */}
-      <Animated.View style={[styles.blobBottom, { backgroundColor: colors.primary }, blobStyle]} />
-      <Animated.View style={[styles.blobTop, { backgroundColor: colors.primary }, blobStyle]} />
+      <Animated.View style={[styles.blobBottom, { backgroundColor: colors.primary || '#1773cf' }, blobStyle]} />
+      <Animated.View style={[styles.blobTop, { backgroundColor: colors.primary || '#1773cf' }, blobStyle]} />
 
       <View style={styles.contentContainer}>
         <Animated.View style={[styles.logoWrapper, logoPopStyle]}>
-          <View style={[styles.logoGlow, { backgroundColor: colors.primary }]} />
+          <View style={[styles.logoGlow, { backgroundColor: colors.primary || '#1773cf' }]} />
           
-          <Animated.View style={[
-              styles.spinnerBorder, 
-              { borderColor: colors.primary }, // Apenas define a cor visível, as transparentes ficam no StyleSheet
-              spinnerRotateStyle
-            ]} 
-          />
+          {/* 🔥 A ESTRUTURA INFALÍVEL DA BONECA RUSSA */}
+          <Animated.View style={[styles.spinnerWrapper, spinnerRotateStyle]}>
+            <View style={styles.spinnerHalfClipper}>
+               <View style={[styles.solidRing, { borderColor: colors.primary || '#1773cf' }]} />
+            </View>
+          </Animated.View>
           
           <View style={[
               styles.logoContainer, 
               { 
-                backgroundColor: colors.card, // Card adapta ao tema
-                shadowColor: colors.primary 
+                backgroundColor: colors.card || '#FFFFFF', 
+                shadowColor: colors.primary || '#1773cf' 
               }
             ]}>
             <Animated.Image 
                 source={LOGO_SOURCE}
                 style={styles.logoImage}
                 resizeMode="contain"
-                fadeDuration={0}
-                onLoad={startLogoAnimation} 
             /> 
           </View>
         </Animated.View>
 
         <Animated.View style={[styles.textContainer, textStyle]}>
-          <Text style={[styles.title, { color: colors.text }]}>Gestio</Text>
-          <Text style={[styles.subtitle, { color: colors.textSub }]}>Gestão de Finanças Pessoais</Text>
+          <Text style={[styles.title, { color: colors.text || '#000000' }]}>Gestio</Text>
+          <Text style={[styles.subtitle, { color: colors.textSub || '#666666' }]}>Gestão de Finanças Pessoais</Text>
         </Animated.View>
       </View>
     </Animated.View>
@@ -140,8 +150,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', 
     justifyContent: 'center', 
     position: 'absolute', 
-    width: '100%', 
-    height: '100%', 
+    top: 0, left: 0, right: 0, bottom: 0,
     zIndex: 9999 
   },
   blobBottom: { 
@@ -171,16 +180,29 @@ const styles = StyleSheet.create({
     borderRadius: 70, 
     opacity: 0.15 
   },
-  spinnerBorder: { 
-    position: 'absolute', 
-    width: 128, 
-    height: 128, 
-    borderRadius: 64, 
-    borderWidth: 4, 
-    borderTopColor: 'transparent', 
-    borderLeftColor: 'transparent' 
-    // borderColor será injetado dinamicamente
+  
+  // 🔥 CSS DA TÉCNICA MATRYOSHKA
+  spinnerWrapper: {
+    position: 'absolute',
+    width: SPINNER_SIZE,
+    height: SPINNER_SIZE,
+    // Centraliza o spinner exatamente no meio do logoWrapper (que tem 130)
+    top: (130 - SPINNER_SIZE) / 2,
+    left: (130 - SPINNER_SIZE) / 2,
   },
+  spinnerHalfClipper: {
+    width: SPINNER_SIZE,
+    height: SPINNER_SIZE / 2, // Metade da altura corta o círculo no meio
+    overflow: 'hidden',
+  },
+  solidRing: {
+    width: SPINNER_SIZE,
+    height: SPINNER_SIZE,
+    borderRadius: SPINNER_SIZE / 2,
+    borderWidth: SPINNER_THICKNESS,
+    // Nada de border color transparente aqui! Cor sólida garantida.
+  },
+
   logoContainer: { 
     width: 120, 
     height: 120, 
@@ -190,7 +212,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 }, 
     shadowOpacity: 0.2, 
     shadowRadius: 20, 
-    elevation: 10 
+    elevation: 10,
+    zIndex: 2 
   },
   logoImage: { width: 80, height: 80 },
   textContainer: { alignItems: 'center' },

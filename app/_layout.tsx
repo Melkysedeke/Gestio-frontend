@@ -1,30 +1,35 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View } from 'react-native';
-import { Stack, useRouter, Slot } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
+import { useEffect, useState, useCallback } from 'react';
+import { View, StyleSheet } from 'react-native';
+import { Stack, useRouter } from 'expo-router'; 
+import * as SplashScreenNative from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useAuthStore } from '../src/stores/authStore';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-// Importa seu componente animado
+import { useAuthStore } from '../src/stores/authStore';
+import { useThemeStore } from '../src/stores/themeStore';
+import { useThemeColor } from '@/hooks/useThemeColor';
+
 import AnimatedSplashScreen from '../components/SplashScreen'; 
 
-// Impede que a Splash Nativa suma automaticamente
-SplashScreen.preventAutoHideAsync();
+SplashScreenNative.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
   const [splashAnimationFinished, setSplashAnimationFinished] = useState(false);
   
+  // Conexão direta com a store
   const { user, loadStorageData } = useAuthStore();
+  const _hasHydrated = useThemeStore(state => state._hasHydrated);
+  
   const router = useRouter();
+  const { isDark } = useThemeColor();
 
-  // Carregar Fontes
   const [fontsLoaded] = useFonts({
     ...MaterialIcons.font,
   });
 
-  // 1. Inicialização (Carregar Dados + Fontes)
+  // 1. Carga de dados inicial
   useEffect(() => {
     async function prepare() {
       try {
@@ -38,47 +43,63 @@ export default function RootLayout() {
     prepare();
   }, []);
 
-  // 2. Redirecionamento Silencioso (Acontece por baixo da Splash)
+  // 2. Redirecionamento após a Splash
   useEffect(() => {
-    if (appIsReady && fontsLoaded) {
+    if (appIsReady && fontsLoaded && _hasHydrated && splashAnimationFinished) {
       if (user) {
         router.replace('/(tabs)');
       } else {
-        router.replace('/login');
+        router.replace('/welcome'); 
       }
     }
-  }, [appIsReady, fontsLoaded, user]);
+  }, [appIsReady, fontsLoaded, _hasHydrated, splashAnimationFinished, user]);
 
-  // 3. Callback para esconder a Splash Nativa (Branca) assim que a View montar
   const onLayoutRootView = useCallback(async () => {
-    if (appIsReady && fontsLoaded) {
-      await SplashScreen.hideAsync();
+    if (appIsReady && fontsLoaded && _hasHydrated) {
+      await SplashScreenNative.hideAsync();
     }
-  }, [appIsReady, fontsLoaded]);
+  }, [appIsReady, fontsLoaded, _hasHydrated]);
 
-  if (!fontsLoaded || !appIsReady) {
+  if (!fontsLoaded || !appIsReady || !_hasHydrated) {
     return null;
   }
 
-  return (
-    <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
-      {/* O App (Stack) é renderizado SEMPRE. 
-         Assim o roteador já existe para receber o router.replace acima.
-      */}
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="register" />
-      </Stack>
+  // ✅ Constante para a cor dinâmica (evita re-criação de string no render)
+  const rootBackgroundColor = isDark ? '#010B19' : '#FFFFFF';
 
-      {/* A Splash Animada é renderizada POR CIMA (Absolute).
-         Ela só some quando a animação termina.
-      */}
-      {!splashAnimationFinished && (
-        <AnimatedSplashScreen 
-          onFinish={() => setSplashAnimationFinished(true)} 
-        />
-      )}
-    </View>
+  return (
+    <SafeAreaProvider>
+      <View 
+        style={[styles.container, { backgroundColor: rootBackgroundColor }]} 
+        onLayout={onLayoutRootView}
+      >
+        {/* SÓ MONTA O STACK QUANDO A ANIMAÇÃO TERMINAR */}
+        {splashAnimationFinished && (
+          <Stack screenOptions={{ freezeOnBlur: false, headerShown: false, animation: 'fade' }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="welcome" /> 
+            <Stack.Screen name="login" />
+            <Stack.Screen name="register" />
+            <Stack.Screen name="index" />
+          </Stack>
+        )}
+
+        {/* SPLASH ANIMADA POR CIMA */}
+        {!splashAnimationFinished && (
+          <View style={StyleSheet.absoluteFill}>
+            <AnimatedSplashScreen 
+              onFinish={() => setSplashAnimationFinished(true)} 
+            />
+          </View>
+        )}
+      </View>
+    </SafeAreaProvider>
   );
 }
+
+// ✅ Alocação de memória permanente e blindada
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  }
+});

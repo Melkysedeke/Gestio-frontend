@@ -11,59 +11,58 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import api from '../src/services/api';
 import { useAuthStore } from '../src/stores/authStore';
-import { useThemeColor } from '@/hooks/useThemeColor'; // <--- Hook de Tema
+import { useThemeColor } from '@/hooks/useThemeColor';
 
 export default function EditProfileScreen() {
   const user = useAuthStore(state => state.user);
   const updateUserSetting = useAuthStore(state => state.updateUserSetting);
   
-  // Hook de Cores
+  const isGuest = user?.email?.includes('@local');
   const { colors, isDark } = useThemeColor();
 
   const [name, setName] = useState(user?.name || '');
-  const [email, setEmail] = useState(user?.email || '');
   const [loading, setLoading] = useState(false);
 
   async function handleUpdate() {
-    if (!name || !email) return Alert.alert('Erro', 'Campos vazios.');
+    if (!name.trim()) return Alert.alert('Erro', 'O nome não pode estar vazio.');
 
     setLoading(true);
     try {
-        const response = await api.put('/users/profile', { name, email });
-        
-        // Atualiza o store local e o banco (se necessário)
         await updateUserSetting({ 
-           name: response.data.name, 
-           email: response.data.email 
+            name: name.trim(), 
         });
 
-        Alert.alert('Sucesso', 'Seus dados foram atualizados!');
-        router.back();
+        Alert.alert('Sucesso', 'Seus dados foram atualizados!', [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
     } catch (error: any) {
-        Alert.alert('Erro', error.response?.data?.error || 'Falha na conexão.');
+        console.error("Erro ao atualizar perfil:", error);
+        Alert.alert('Erro', 'Não foi possível salvar as alterações no banco local.');
     } finally {
         setLoading(false);
     }
   }
 
+  // ✅ Constantes para evitar objetos literais no render
+  const buttonOpacity = loading ? 0.7 : 1;
+  const emailInputBg = isGuest ? colors.border : colors.inputBg;
+  const emailTextColor = isGuest ? colors.textSub : colors.text;
+  const emailOpacity = isGuest ? 0.7 : 1;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Dados Pessoais</Text>
-        <View style={{ width: 24 }} /> 
+        <View style={styles.placeholderView} /> 
       </View>
 
       <View style={styles.form}>
-        
-        {/* INPUT NOME */}
         <View style={styles.inputGroup}>
           <Text style={[styles.label, { color: colors.textSub }]}>Nome Completo</Text>
           <TextInput 
@@ -75,37 +74,39 @@ export default function EditProfileScreen() {
             value={name}
             onChangeText={setName}
             placeholder="Seu nome"
-            placeholderTextColor={colors.textSub} // Placeholder cor correta
+            placeholderTextColor={colors.textSub}
           />
         </View>
 
-        {/* INPUT EMAIL */}
         <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.textSub }]}>E-mail</Text>
+          <View style={styles.labelRow}>
+            <Text style={[styles.label, { color: colors.textSub }]}>E-mail</Text>
+            {isGuest && <Text style={[styles.guestBadge, { color: colors.primary }]}>Modo Convidado</Text>}
+          </View>
           <TextInput 
             style={[styles.input, { 
-                backgroundColor: colors.inputBg, 
+                backgroundColor: emailInputBg, 
                 borderColor: colors.border,
-                color: colors.text 
+                color: emailTextColor,
+                opacity: emailOpacity
             }]}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="seu@email.com"
+            value={isGuest ? "Conta Local (Sincronização pendente)" : user?.email}
+            editable={false}
             placeholderTextColor={colors.textSub}
-            keyboardType="email-address"
-            autoCapitalize="none"
           />
         </View>
 
         <TouchableOpacity 
-          style={[styles.button, { backgroundColor: colors.primary }, loading && { opacity: 0.7 }]} 
+          style={[styles.button, { backgroundColor: colors.primary, opacity: buttonOpacity }]} 
           onPress={handleUpdate}
           disabled={loading}
         >
           {loading ? (
             <ActivityIndicator color="#FFF" />
           ) : (
-            <Text style={styles.buttonText}>Salvar Alterações</Text>
+            <Text style={styles.buttonText}>
+              Atualizar Nome
+            </Text>
           )}
         </TouchableOpacity>
       </View>
@@ -114,19 +115,45 @@ export default function EditProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { 
+    flex: 1 
+  },
   header: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'space-between', 
     paddingHorizontal: 20, 
-    paddingTop: 60, // Ajuste conforme SafeArea se necessário
+    paddingTop: 60,
     paddingBottom: 20 
   },
-  title: { fontSize: 18, fontWeight: 'bold' },
-  form: { padding: 20, gap: 20 },
-  inputGroup: { gap: 8 },
-  label: { fontSize: 14, fontWeight: '600' },
+  backButton: { 
+    padding: 4 
+  },
+  title: { 
+    fontSize: 18, 
+    fontWeight: 'bold' 
+  },
+  placeholderView: { 
+    width: 24 
+  },
+  form: { 
+    padding: 20, 
+    gap: 20 
+  },
+  inputGroup: { 
+    gap: 8 
+  },
+  labelRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between' 
+  },
+  label: { 
+    fontSize: 14, 
+    fontWeight: '600' 
+  },
+  guestBadge: { 
+    fontSize: 10 
+  },
   input: { 
     borderWidth: 1, 
     borderRadius: 12, 
@@ -139,5 +166,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10
   },
-  buttonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' }
+  buttonText: { 
+    color: '#FFF', 
+    fontSize: 16, 
+    fontWeight: 'bold' 
+  }
 });

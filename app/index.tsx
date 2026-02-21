@@ -1,25 +1,33 @@
-import React, { useState } from 'react';
-import { useRouter } from 'expo-router'; // Use router imperativo
-import SplashScreen from '../components/SplashScreen';
+// app/index.tsx
+import { Redirect } from 'expo-router';
 import { useAuthStore } from '../src/stores/authStore';
+import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { useThemeColor } from '@/hooks/useThemeColor';
 
-export default function AppEntry() {
-  const [showSplash, setShowSplash] = useState(true);
-  const { user } = useAuthStore();
-  const router = useRouter();
+export default function Index() {
+  const user = useAuthStore((state) => state.user);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const { colors } = useThemeColor();
 
-  const handleFinish = () => {
-    setShowSplash(false);
-    if (user) {
-      router.replace('/(tabs)'); // Se já estiver logado, vai pra Home
-    } else {
-      router.replace('/login');  // Se não, vai pro Login
-    }
-  };
-
-  if (showSplash) {
-    return <SplashScreen onFinish={handleFinish} />;
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
   }
 
-  return null; // Retorna null enquanto o router faz a troca
+  if (!user) {
+    return <Redirect href="/welcome" />;
+  }
+
+  return <Redirect href="/(tabs)" />;
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

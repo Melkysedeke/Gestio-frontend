@@ -1,269 +1,187 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { 
-  View, Text, StyleSheet, SectionList, TouchableOpacity, 
-  StatusBar, RefreshControl, Platform, ScrollView, ActivityIndicator
-} from 'react-native';
+import { View, Text, StyleSheet, SectionList, TouchableOpacity, StatusBar, RefreshControl, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect, router } from 'expo-router';
+import { Q } from '@nozbe/watermelondb';
 
+import { database } from '../../src/database';
 import { useAuthStore } from '../../src/stores/authStore';
-import api from '../../src/services/api';
-import { useThemeColor } from '@/hooks/useThemeColor'; // Hook de tema
+import { useThemeColor } from '@/hooks/useThemeColor';
+import Transaction from '../../src/database/models/Transaction';
+import Wallet from '../../src/database/models/Wallet';
 
-import CreateWalletModal from '../../components/CreateWalletModal';
-import WalletSelectorModal from '../../components/WalletSelectorModal';
 import MainHeader from '../../components/MainHeader';
+import MonthSelector from '../../components/MonthSelector';
+import TransactionFilters from '../../components/TransactionFilters';
 
 export default function TransactionsScreen() {
-  const user = useAuthStore(state => state.user);
-  const updateUserSetting = useAuthStore(state => state.updateUserSetting);
-  const { colors, isDark } = useThemeColor(); // Cores dinâmicas
-  
+  // ✅ Removido o 'updateUserSetting' que agora é gerenciado pelo MainHeader
+  const { user } = useAuthStore();
+  const hideValues = useAuthStore(state => state.hideValues);
+
+  const { colors, isDark } = useThemeColor();
+
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-  
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [wallets, setWallets] = useState<any[]>([]);
-  
-  const [activeFilter, setActiveFilter] = useState<'week' | 'current' | 'last' | 'all'>('current');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [wallets, setWallets] = useState<Wallet[]>([]);
 
-  const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [selectorVisible, setSelectorVisible] = useState(false);
+  // Filtros
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [searchText, setSearchText] = useState('');
+  const [selectedType, setSelectedType] = useState<'all' | 'income' | 'expense'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  // Cores fixas semânticas
-  const INCOME_COLOR = "#0bda5b";
-  const EXPENSE_COLOR = "#fa6238";
-  const THEME_PRIMARY = "#1773cf";
-
-  const formatDateShort = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  const formatDisplayCurrency = (value: number) => {
+    if (hideValues) return "R$ •••••";
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
+  // ✅ Função unificada de busca de dados
   const fetchData = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const walletRes = await api.get('/wallets/');
-      const allWallets = walletRes.data;
+      const allWallets = await database.get<Wallet>('wallets').query().fetch();
       setWallets(allWallets);
-
-      const savedWalletExists = allWallets.find((w: any) => w.id === user.last_opened_wallet);
-      const activeId = savedWalletExists ? savedWalletExists.id : (allWallets.length > 0 ? allWallets[0].id : null);
+      
+      const activeId = user?.settings?.last_opened_wallet || allWallets[0]?.id;
 
       if (activeId) {
-        if (user.last_opened_wallet !== activeId) {
-           updateUserSetting({ last_opened_wallet: activeId });
-        }
-        const transRes = await api.get(`/transactions?wallet_id=${activeId}`);
-        setTransactions(transRes.data);
-      } else {
-        setTransactions([]);
+        const start = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).getTime();
+        const end = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0, 23, 59, 59).getTime();
+
+        const queryArr = [
+          Q.where('wallet_id', activeId),
+          Q.where('transaction_date', Q.gte(start)),
+          Q.where('transaction_date', Q.lte(end)),
+          Q.sortBy('transaction_date', Q.desc)
+        ];
+
+        if (selectedType !== 'all') queryArr.push(Q.where('type', selectedType));
+
+        const res = await database.get<Transaction>('transactions').query(...queryArr).fetch();
+        setTransactions(res);
       }
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+    } catch (e) { 
+      console.error("Erro ao carregar transações:", e); 
+    } finally { 
+      setLoading(false); 
+      setRefreshing(false); 
     }
-  }, [user?.id, user?.last_opened_wallet, updateUserSetting]);
+  }, [user?.id, user?.settings?.last_opened_wallet, selectedMonth, selectedType]);
 
   useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
-  const { sections, summary } = useMemo(() => {
-    if (transactions.length === 0) return { sections: [], summary: { income: 0, expense: 0 } };
-
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6);
-    endOfWeek.setHours(23, 59, 59, 999);
-
-    const filtered = transactions.filter(item => {
-      const tDate = new Date(item.transaction_date); 
-      const matchesType = typeFilter === 'all' || item.type === typeFilter;
-      
-      let matchesDate = true;
-      if (activeFilter === 'week') matchesDate = tDate >= startOfWeek && tDate <= endOfWeek;
-      else if (activeFilter === 'current') matchesDate = tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear;
-      else if (activeFilter === 'last') {
-        const lastM = currentMonth === 0 ? 11 : currentMonth - 1;
-        const lastY = currentMonth === 0 ? currentYear - 1 : currentYear;
-        matchesDate = tDate.getMonth() === lastM && tDate.getFullYear() === lastY;
-      }
-      return matchesDate && matchesType;
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const mSearch = !searchText || t.description?.toLowerCase().includes(searchText.toLowerCase()) || t.categoryName?.toLowerCase().includes(searchText.toLowerCase());
+      const mCat = !selectedCategory || t.categoryName === selectedCategory;
+      return mSearch && mCat;
     });
+  }, [transactions, searchText, selectedCategory]);
 
-    const stats = filtered.reduce((acc, curr) => {
-      const val = Number(curr.amount);
-      if (curr.type === 'income') acc.income += val;
-      else acc.expense += val;
-      return acc;
-    }, { income: 0, expense: 0 });
-
-    const grouped: { [key: string]: any[] } = {};
-    filtered.forEach(item => {
-      const dateKey = item.transaction_date.split('T')[0];
-      if (!grouped[dateKey]) grouped[dateKey] = [];
-      grouped[dateKey].push(item);
+  const sections = useMemo(() => {
+    const grouped: any = {};
+    filteredTransactions.forEach(t => {
+      const key = new Date(t.transactionDate).toISOString().split('T')[0];
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(t);
     });
-
-    const sectionData = Object.keys(grouped)
-      .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
-      .map(dateKey => ({
-        title: formatDateHeader(dateKey),
-        data: grouped[dateKey]
-      }));
-
-    return { sections: sectionData, summary: stats };
-  }, [transactions, activeFilter, typeFilter]);
+    return Object.keys(grouped).sort((a, b) => b.localeCompare(a)).map(k => ({ title: formatDateHeader(k), data: grouped[k] }));
+  }, [filteredTransactions]);
 
   function formatDateHeader(dateString: string) {
-    const date = new Date(dateString + 'T12:00:00');
-    const today = new Date();
-    const dStr = date.toISOString().split('T')[0];
-    const tStr = today.toISOString().split('T')[0];
-
-    if (dStr === tStr) return 'Hoje';
-    const yesterday = new Date();
-    yesterday.setDate(today.getDate() - 1);
-    if (dStr === yesterday.toISOString().split('T')[0]) return 'Ontem';
-    
-    const fullDate = date.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
-    const cleanDate = fullDate.replace('-feira', '');
-    return cleanDate.charAt(0).toUpperCase() + cleanDate.slice(1);
+    const d = new Date(dateString + 'T12:00:00');
+    const now = new Date();
+    if (dateString === now.toISOString().split('T')[0]) return 'Hoje';
+    now.setDate(now.getDate() - 1);
+    if (dateString === now.toISOString().split('T')[0]) return 'Ontem';
+    return d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }).replace('-feira', '').replace(/^\w/, c => c.toUpperCase());
   }
 
-  const handleSelectWallet = (walletId: number) => {
-    updateUserSetting({ last_opened_wallet: walletId });
-    setSelectorVisible(false);
+  const handleClearAll = () => {
+    setSearchText('');
+    setSelectedType('all');
+    setSelectedCategory(null);
   };
 
-  const activeWallet = wallets.find(w => w.id === user?.last_opened_wallet) || wallets[0];
+  const activeWallet = wallets.find(w => w.id === user?.settings?.last_opened_wallet) || wallets[0];
 
   if (loading && !refreshing) {
-      return (
-        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }]}>
-          <ActivityIndicator size="large" color={THEME_PRIMARY} />
-        </View>
-      );
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
+      {/* ✅ MainHeader agora gerencia o seletor de carteira e modais internamente */}
       <MainHeader 
-        user={user} 
-        activeWallet={activeWallet} 
-        onPressSelector={() => wallets.length === 0 ? setCreateModalVisible(true) : setSelectorVisible(true)}
-        // onPressAdd REMOVIDO para corrigir o erro de TypeScript
+        activeWallet={activeWallet}
+        onWalletChange={fetchData} 
       />
 
-      <View style={[styles.summaryCardSlim, { backgroundColor: colors.card, shadowColor: isDark ? '#000' : '#ccc' }]}>
-        <View style={styles.summaryItem}>
-          <Text style={[styles.summaryLabel, { color: colors.textSub }]}>Entradas</Text>
-          <Text style={[styles.summaryValueSmall, { color: INCOME_COLOR }]} numberOfLines={1}>
-            {summary.income.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-          </Text>
-        </View>
-        <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
-        <View style={styles.summaryItem}>
-          <Text style={[styles.summaryLabel, { color: colors.textSub }]}>Saídas</Text>
-          <Text style={[styles.summaryValueSmall, { color: EXPENSE_COLOR }]} numberOfLines={1}>
-            {summary.expense.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.filtersWrapper}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.periodScroll}>
-          {['week', 'current', 'last', 'all'].map((f) => (
-            <TouchableOpacity 
-              key={f} 
-              onPress={() => setActiveFilter(f as any)}
-              style={[
-                  styles.filterTabSlim, 
-                  { backgroundColor: activeFilter === f ? THEME_PRIMARY : colors.card }
-              ]}
-            >
-              <Text style={[styles.filterTextSmall, { color: activeFilter === f ? '#FFF' : colors.textSub }]}>
-                {f === 'week' ? 'Semana' : f === 'current' ? 'Mês' : f === 'last' ? 'Mês Passado' : 'Tudo'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        <View style={styles.typeRowSlim}>
-          {['all', 'income', 'expense'].map((t) => (
-            <TouchableOpacity 
-              key={t} 
-              onPress={() => setTypeFilter(t as any)}
-              style={[
-                  styles.typeBtnSlim, 
-                  { 
-                      backgroundColor: typeFilter === t ? (isDark ? '#334155' : '#1e293b') : colors.card,
-                      borderColor: typeFilter === t ? 'transparent' : colors.border
-                  }
-              ]}
-            >
-              <Text style={[styles.typeBtnTextSmall, { color: typeFilter === t ? '#FFF' : colors.textSub }]}>
-                {t === 'all' ? 'Todas' : t === 'income' ? 'Receitas' : 'Despesas'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+      <View style={styles.filterSection}>
+        <MonthSelector selectedDate={selectedMonth} onMonthChange={setSelectedMonth} />
+        <TransactionFilters
+          searchText={searchText}
+          onSearchChange={setSearchText}
+          selectedType={selectedType}
+          onTypeChange={setSelectedType}
+          selectedCategory={selectedCategory}
+          onCategoryChange={setSelectedCategory}
+          onClearAll={handleClearAll}
+        />
       </View>
 
       <SectionList
         sections={sections}
-        keyExtractor={(item) => String(item.id)}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         stickySectionHeadersEnabled={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={THEME_PRIMARY} />}
+        extraData={hideValues} 
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={colors.primary} />}
         renderItem={({ item }) => {
           const isIncome = item.type === 'income';
-          
-          // Fundo do ícone adaptativo
-          const iconBg = isIncome 
-            ? (isDark ? 'rgba(11, 218, 91, 0.15)' : '#ecfdf5') 
-            : (isDark ? 'rgba(250, 98, 56, 0.15)' : '#fef2f2');
+          const iconBgColor = isIncome
+            ? (isDark ? 'rgba(34, 197, 94, 0.15)' : '#f0fdf4')
+            : (isDark ? 'rgba(239, 68, 68, 0.15)' : '#fef2f2');
+          const amountColor = isIncome ? colors.success : colors.danger;
+          const isLinked = !!((item as any)._raw?.debt_id || (item as any)._raw?.goal_id);
 
           return (
-            <TouchableOpacity 
-                style={[styles.transactionItem, { backgroundColor: colors.card }]}
-                onPress={() => router.push({ pathname: '/edit-transaction', params: { ...item } })}
+            <TouchableOpacity
+              style={[styles.transactionItem, { backgroundColor: colors.card }]}
+              onPress={() => router.push({ pathname: '/edit-transaction', params: { id: item.id } })}
+              activeOpacity={0.7}
             >
-                <View style={styles.itemLeft}>
-                    <View style={[styles.iconCircle, { backgroundColor: iconBg }]}>
-                        <MaterialIcons name={item.category_icon || 'attach-money'} size={20} color={isIncome ? INCOME_COLOR : EXPENSE_COLOR} />
-                    </View>
-                    <View style={styles.descContainer}>
-                        <Text style={[styles.itemTitle, { color: colors.text }]} numberOfLines={1}>
-                            {item.category_name || 'Geral'}
-                        </Text>
-                        <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
-                            <Text style={[styles.itemSubtitle, { color: colors.textSub }]}>
-                                {formatDateShort(item.transaction_date)}
-                            </Text>
-                            {item.description ? (
-                                <Text style={[styles.itemSubtitle, { color: colors.textSub, flex: 1 }]} numberOfLines={1}>
-                                    • {item.description}
-                                </Text>
-                            ) : null}
-                        </View>
-                    </View>
+              <View style={styles.itemLeft}>
+                <View style={[styles.iconCircle, { backgroundColor: iconBgColor }]}>
+                  <MaterialIcons name={(item.categoryIcon || 'attach-money') as any} size={20} color={amountColor} />
                 </View>
-                <View style={styles.amountContainer}>
-                    <Text style={[styles.itemAmount, { color: isIncome ? INCOME_COLOR : EXPENSE_COLOR }]} numberOfLines={1}>
-                        {isIncome ? '+' : '-'} {Number(item.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </Text>
+                <View style={styles.descContainer}>
+                  <View style={styles.titleRow}>
+                    <Text style={[styles.itemTitle, { color: colors.text }]} numberOfLines={1}>{item.categoryName || 'Geral'}</Text>
+                    {isLinked && (
+                      <View style={[styles.linkedBadge, { backgroundColor: isDark ? '#334155' : '#e2e8f0' }]}>
+                        <MaterialIcons name="lock" size={8} color={colors.textSub} />
+                        <Text style={[styles.linkedText, { color: colors.textSub }]}>Vinculado</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.itemSubtitle, { color: colors.textSub }]} numberOfLines={1}>
+                    {new Date(item.transactionDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                    {item.description ? ` • ${item.description}` : ''}
+                  </Text>
                 </View>
+              </View>
+              <Text style={[styles.itemAmount, { color: amountColor }]}>
+                {isIncome ? '+' : '-'} {formatDisplayCurrency(item.amount)}
+              </Text>
             </TouchableOpacity>
           );
         }}
@@ -272,73 +190,100 @@ export default function TransactionsScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <MaterialIcons name="event-note" size={50} color={colors.textSub} />
-            <Text style={[styles.emptyText, { color: colors.textSub }]}>Nenhuma transação encontrada.</Text>
+            <MaterialIcons name="search-off" size={40} color={colors.textSub} />
+            <Text style={[styles.emptyText, { color: colors.textSub }]}>Nenhuma transação encontrada</Text>
           </View>
         }
       />
-
-      <WalletSelectorModal 
-        visible={selectorVisible} 
-        onClose={() => setSelectorVisible(false)} 
-        onSelect={handleSelectWallet} 
-        onAddPress={() => setCreateModalVisible(true)}
-      />
-      <CreateWalletModal visible={createModalVisible} onClose={() => setCreateModalVisible(false)} onSuccess={fetchData} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  
-  summaryCardSlim: { 
-    flexDirection: 'row', 
-    marginHorizontal: 16, marginTop: 8, marginBottom: 12,
-    paddingVertical: 12, borderRadius: 12, 
-    ...Platform.select({ ios: { shadowOpacity: 0.03, shadowRadius: 5 }, android: { elevation: 1 } }) 
+  container: {
+    flex: 1
   },
-  summaryItem: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
-  summaryDivider: { width: 1 },
-  summaryLabel: { fontSize: 10, marginBottom: 2, fontWeight: '600' },
-  summaryValueSmall: { fontSize: 13, fontWeight: '700' },
-  
-  filtersWrapper: { marginBottom: 8 },
-  periodScroll: { paddingHorizontal: 16, gap: 6, marginBottom: 8 },
-  filterTabSlim: { paddingVertical: 5, paddingHorizontal: 12, borderRadius: 15 },
-  filterTextSmall: { fontSize: 11, fontWeight: '500' },
-  
-  typeRowSlim: { flexDirection: 'row', paddingHorizontal: 16, gap: 6 },
-  typeBtnSlim: { 
-    flex: 1, paddingVertical: 6, alignItems: 'center', 
-    borderRadius: 8, borderWidth: 1
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
   },
-  typeBtnTextSmall: { fontSize: 11, fontWeight: '600' },
-  
-  listContent: { paddingHorizontal: 16, paddingBottom: 100 },
-  sectionTitle: { fontSize: 12, fontWeight: '700', marginTop: 16, marginBottom: 8, marginLeft: 4 },
-  
-  transactionItem: { 
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
-    padding: 10, borderRadius: 16, marginBottom: 4 
+  filterSection: {
+    paddingTop: 12,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    gap: 16
   },
-  itemLeft: { 
-    flex: 1, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 8 
+  listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 0,
+    paddingBottom: 100
   },
-  iconCircle: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  descContainer: { 
-    flex: 1, 
-    marginRight: 8 
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 12,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
   },
-  itemTitle: { fontSize: 14, fontWeight: '700' }, 
-  itemSubtitle: { fontSize: 12 }, 
-  
-  amountContainer: { marginLeft: 4, alignItems: 'flex-end' },
-  itemAmount: { fontSize: 14, fontWeight: '900' },
-  
-  emptyContainer: { alignItems: 'center', marginTop: 40 },
-  emptyText: { marginTop: 10 }
+  transactionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 6
+  },
+  itemLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  iconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  descContainer: {
+    flex: 1
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
+  },
+  itemTitle: {
+    fontSize: 14,
+    fontWeight: '700'
+  },
+  linkedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    gap: 2
+  },
+  linkedText: {
+    fontSize: 8,
+    fontWeight: 'bold'
+  },
+  itemSubtitle: {
+    fontSize: 12
+  },
+  itemAmount: {
+    fontSize: 14,
+    fontWeight: '900'
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    marginTop: 80
+  },
+  emptyText: {
+    marginTop: 8
+  }
 });

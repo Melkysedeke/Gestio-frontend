@@ -1,38 +1,38 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
-import { Tabs, useSegments } from 'expo-router'; 
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+// ✅ Trocamos useSegments por usePathname
+import { Tabs, usePathname } from 'expo-router'; 
 import { MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Componentes e Stores
-import ActionSheet from '../../components/ActionSheet'; // Ajuste o caminho se necessário
+import ActionSheet from '../../components/ActionSheet';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor'; 
 
-// Componente do Botão Central Customizado
-const CustomTabBarButton = ({ onPress, style, borderColor }: any) => (
-  <TouchableOpacity
-    // Removemos 'style' daqui para evitar estilos padrões do React Navigation que possam ter background
-    style={styles.customButtonContainer}
-    onPress={onPress}
-    activeOpacity={0.8}
-  >
-    <View style={[styles.customButton, { borderColor: borderColor }]}> 
-      <MaterialIcons name="add" size={32} color="#FFF" />
-    </View>
-  </TouchableOpacity>
-);
-
 export default function TabLayout() {
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
-  const segments = useSegments();
+  
+  // ✅ Usamos o pathname para evitar o erro de Tuple do TypeScript
+  const pathname = usePathname();
   
   const hasWallets = useAuthStore(state => state.hasWallets);
-  const { colors, isDark } = useThemeColor(); 
+  const { colors } = useThemeColor();
+  
+  const insets = useSafeAreaInsets(); 
 
-  const currentTabName = segments[1] || 'index';
-  const sheetContext = ['index', 'transactions', 'debts', 'goals'].includes(currentTabName) 
+  // ✅ Pega o nome da aba atual com segurança
+  const lastSegment = pathname.split('/').pop();
+  const currentTabName = lastSegment || 'index';
+  
+  const validContexts = ['index', 'transactions', 'debts', 'goals'];
+  const sheetContext = validContexts.includes(currentTabName) 
       ? (currentTabName as 'index' | 'transactions' | 'debts' | 'goals') 
       : 'index';
+
+  // Cálculos dinâmicos
+  const TAB_BAR_BASE_HEIGHT = 60; 
+  const bottomPadding = insets.bottom > 0 ? insets.bottom : 10; 
 
   return (
     <>
@@ -40,7 +40,7 @@ export default function TabLayout() {
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: true,
-          tabBarActiveTintColor: colors.primary,
+          tabBarActiveTintColor: colors.primary, 
           tabBarInactiveTintColor: colors.textSub,
           
           tabBarStyle: {
@@ -49,13 +49,13 @@ export default function TabLayout() {
             bottom: 0, 
             left: 0, 
             right: 0,
-            backgroundColor: isDark ? colors.card : 'rgba(255, 255, 255, 0.95)',
+            backgroundColor: colors.card,
             borderTopWidth: 1, 
             borderTopColor: colors.border, 
-            elevation: 0, // Remove sombra da barra no Android
-            shadowOpacity: 0, // Remove sombra da barra no iOS
-            height: Platform.OS === 'ios' ? 85 : 70,
-            paddingBottom: Platform.OS === 'ios' ? 25 : 10, 
+            elevation: 0,
+            shadowOpacity: 0,
+            height: TAB_BAR_BASE_HEIGHT + bottomPadding,
+            paddingBottom: bottomPadding, 
             paddingTop: 10,
           },
           tabBarLabelStyle: { 
@@ -81,7 +81,6 @@ export default function TabLayout() {
           }}
         />
 
-        {/* Botão Central (ActionSheet) */}
         <Tabs.Screen
           name="add"
           options={{
@@ -91,8 +90,8 @@ export default function TabLayout() {
               <CustomTabBarButton
                 {...props}
                 onPress={() => setActionSheetVisible(true)}
-                // Usamos background dinâmico para simular o "recorte"
-                borderColor={isDark ? colors.card : '#f6f7f8'} 
+                borderColor={colors.background} 
+                buttonColor={colors.primary}
               />
             )
           }}
@@ -130,25 +129,37 @@ export default function TabLayout() {
   );
 }
 
+// Componente do Botão Central (Mantido igual)
+const CustomTabBarButton = ({ onPress, borderColor, buttonColor }: any) => (
+  <TouchableOpacity
+    style={styles.customButtonContainer}
+    onPress={onPress}
+    activeOpacity={0.8}
+  >
+    <View style={[styles.customButton, { 
+      borderColor: borderColor, 
+      backgroundColor: buttonColor 
+    }]}> 
+      <MaterialIcons name="add" size={32} color="#FFF" />
+    </View>
+  </TouchableOpacity>
+);
+
 const styles = StyleSheet.create({
   customButtonContainer: {
     top: -30,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
-    // REMOVIDO: Shadows/Elevation daqui. Isso causava a "caixa fantasma".
   },
   customButton: {
     width: 56, 
     height: 56, 
     borderRadius: 28, 
-    backgroundColor: '#1773cf', 
     alignItems: 'center', 
     justifyContent: 'center', 
     borderWidth: 4, 
-    
-    // A sombra fica APENAS aqui (no círculo)
-    shadowColor: '#1773cf', 
+    shadowColor: '#000', 
     shadowOffset: { width: 0, height: 4 }, 
     shadowOpacity: 0.3, 
     shadowRadius: 4, 

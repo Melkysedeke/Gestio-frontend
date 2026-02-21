@@ -5,23 +5,24 @@ import {
 import { router } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useAuthStore } from '../src/stores/authStore';
-import api from '../src/services/api';
-import { useThemeColor } from '@/hooks/useThemeColor'; // <--- Hook
 
-const THEME_COLOR = '#1773cf'; // Azul padrão para Objetivos
+// Banco de Dados e Stores
+import { database } from '../src/database';
+import { useAuthStore } from '../src/stores/authStore';
+import { useThemeColor } from '@/hooks/useThemeColor';
 
 export default function AddGoalScreen() {
   const user = useAuthStore(state => state.user);
-  const { colors } = useThemeColor(); // <--- Cores Dinâmicas
+  const { colors } = useThemeColor(); 
   
+  const THEME_COLOR = colors.primary; 
+
   const [name, setName] = useState('');
-  const [amountRaw, setAmountRaw] = useState(''); // Guarda "15000" para R$ 150,00
+  const [amountRaw, setAmountRaw] = useState(''); 
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // --- MÁSCARA MONETÁRIA ---
   const handleAmountChange = (text: string) => {
     const onlyNumbers = text.replace(/\D/g, "");
     setAmountRaw(onlyNumbers);
@@ -39,30 +40,38 @@ export default function AddGoalScreen() {
   };
 
   async function handleSave() {
-    const finalAmount = amountRaw ? parseInt(amountRaw) / 100 : 0;
+    const targetAmount = amountRaw ? parseInt(amountRaw) / 100 : 0;
     
-    if (!name.trim() || finalAmount <= 0) {
-      return Alert.alert('Atenção', 'Informe um nome e um valor meta válido.');
+    if (!name.trim()) {
+      return Alert.alert('Atenção', 'Dê um nome ao seu objetivo.');
+    }
+    
+    if (targetAmount <= 0) {
+      return Alert.alert('Atenção', 'O valor da meta deve ser maior que zero.');
     }
 
-    if (!user?.last_opened_wallet) {
-      return Alert.alert('Erro', 'Nenhuma carteira selecionada.');
+    const walletId = user?.settings?.last_opened_wallet;
+    if (!walletId) {
+      return Alert.alert('Erro', 'Nenhuma carteira selecionada. Crie ou selecione uma carteira primeiro.');
     }
 
     setLoading(true);
     try {
-      await api.post('/goals', {
-        wallet_id: user.last_opened_wallet,
-        name: name.trim(),
-        target_amount: finalAmount,
-        deadline: date.toISOString(),
-        color: THEME_COLOR 
+      await database.write(async () => {
+        await database.get('goals').create((g: any) => {
+          g.name = name.trim();
+          g.targetAmount = targetAmount;
+          g.currentAmount = 0; 
+          g.deadline = date; 
+          g.color = THEME_COLOR;
+          g._raw.wallet_id = walletId; 
+        });
       });
 
       router.back();
     } catch (error: any) {
-      const msg = error.response?.data?.error || 'Falha ao criar objetivo.';
-      Alert.alert('Erro', msg);
+      console.error("Erro ao criar objetivo:", error);
+      Alert.alert('Erro', 'Falha ao salvar o objetivo no banco de dados local.');
     } finally {
       setLoading(false);
     }
@@ -71,20 +80,19 @@ export default function AddGoalScreen() {
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       <StatusBar backgroundColor={THEME_COLOR} barStyle="light-content" />
       
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         
-        {/* HEADER */}
         <View style={[styles.header, { backgroundColor: THEME_COLOR }]}>
           <View style={styles.headerTop}>
-            <TouchableOpacity onPress={() => router.back()}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.headerAction}>
               <MaterialIcons name="arrow-back" size={24} color="#FFF" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Novo Objetivo</Text>
-            <View style={{ width: 24 }} />
+            <View style={styles.headerPlaceholder} />
           </View>
 
           <View style={styles.amountContainer}>
@@ -99,10 +107,12 @@ export default function AddGoalScreen() {
               autoFocus
             />
           </View>
+          <Text style={styles.subtitleHeader}>Qual é o valor da meta?</Text>
 
           <TouchableOpacity 
             style={styles.headerDateButton} 
             onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.7}
           >
             <MaterialIcons name="flag" size={14} color="#FFF" />
             <Text style={styles.headerDateText}>
@@ -112,11 +122,13 @@ export default function AddGoalScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* FORMULÁRIO */}
         <View style={styles.form}>
           <Text style={[styles.label, { color: colors.textSub }]}>Nome do Objetivo</Text>
           <TextInput 
-            style={[styles.inputCompact, { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }]} 
+            style={[
+                styles.inputCompact, 
+                { backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text }
+            ]} 
             value={name} 
             onChangeText={setName} 
             placeholder="Ex: Viagem para Europa, PS5"
@@ -129,6 +141,7 @@ export default function AddGoalScreen() {
               mode="date" 
               display={Platform.OS === 'ios' ? 'spinner' : 'default'}
               onChange={onDateChange} 
+              minimumDate={new Date()} 
             />
           )}
 
@@ -136,16 +149,18 @@ export default function AddGoalScreen() {
             style={[styles.saveButton, { backgroundColor: THEME_COLOR }]} 
             onPress={handleSave}
             disabled={loading}
+            activeOpacity={0.8}
           >
             {loading ? (
               <ActivityIndicator color="#FFF" />
             ) : (
-              <Text style={styles.saveButtonText}>Definir Meta</Text>
+              <Text style={styles.saveButtonText}>Criar Objetivo</Text>
             )}
           </TouchableOpacity>
           
           <Text style={[styles.infoText, { color: colors.textSub }]}>
-            O valor guardado neste objetivo será deduzido do saldo disponível da sua carteira.
+            O valor inserido acima é apenas a sua META final. O seu objetivo começará com saldo R$ 0,00. 
+            Você poderá guardar dinheiro nele a qualquer momento.
           </Text>
         </View>
       </ScrollView>
@@ -154,22 +169,111 @@ export default function AddGoalScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingTop: 50, paddingBottom: 25, paddingHorizontal: 20, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, alignItems: 'center' },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 10 },
-  headerTitle: { fontSize: 16, color: '#FFF', fontWeight: 'bold' },
-  
-  amountContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 15 },
-  currencySymbol: { fontSize: 24, color: 'rgba(255,255,255,0.8)', marginRight: 5 },
-  amountInput: { fontSize: 42, fontWeight: 'bold', color: '#FFF', minWidth: 120, textAlign: 'center' },
-  
-  headerDateButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, gap: 6 },
-  headerDateText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
-
-  form: { padding: 24 },
-  label: { fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 15 },
-  inputCompact: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 16 },
-  
-  saveButton: { marginTop: 35, paddingVertical: 16, borderRadius: 15, alignItems: 'center', elevation: 3 },
-  saveButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  infoText: { textAlign: 'center', fontSize: 11, marginTop: 20, paddingHorizontal: 20, lineHeight: 16 }
+  container: {
+    flex: 1
+  },
+  scrollContent: {
+    flexGrow: 1
+  },
+  header: { 
+    paddingTop: Platform.OS === 'ios' ? 60 : 50, 
+    paddingBottom: 25, 
+    paddingHorizontal: 20, 
+    borderBottomLeftRadius: 30, 
+    borderBottomRightRadius: 30, 
+    alignItems: 'center' 
+  },
+  headerTop: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    width: '100%', 
+    marginBottom: 10 
+  },
+  headerAction: {
+    padding: 4
+  },
+  headerTitle: { 
+    fontSize: 16, 
+    color: '#FFF', 
+    fontWeight: 'bold' 
+  },
+  headerPlaceholder: {
+    width: 32
+  },
+  amountContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginTop: 10 
+  },
+  currencySymbol: { 
+    fontSize: 24, 
+    color: 'rgba(255,255,255,0.8)', 
+    marginRight: 5 
+  },
+  amountInput: { 
+    fontSize: 42, 
+    fontWeight: 'bold', 
+    color: '#FFF', 
+    minWidth: 120, 
+    textAlign: 'center' 
+  },
+  subtitleHeader: { 
+    color: 'rgba(255,255,255,0.8)', 
+    fontSize: 12, 
+    marginBottom: 20 
+  },
+  headerDateButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: 'rgba(255,255,255,0.2)', 
+    paddingHorizontal: 12, 
+    paddingVertical: 6, 
+    borderRadius: 20, 
+    gap: 6 
+  },
+  headerDateText: { 
+    color: '#FFF', 
+    fontSize: 13, 
+    fontWeight: '600' 
+  },
+  form: { 
+    padding: 24 
+  },
+  label: { 
+    fontSize: 13, 
+    fontWeight: '600', 
+    marginBottom: 6, 
+    marginTop: 15 
+  },
+  inputCompact: { 
+    borderWidth: 1, 
+    borderRadius: 12, 
+    padding: 14, 
+    fontSize: 16 
+  },
+  saveButton: { 
+    marginTop: 35, 
+    paddingVertical: 16, 
+    borderRadius: 15, 
+    alignItems: 'center', 
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4
+  },
+  saveButtonText: { 
+    color: '#FFF', 
+    fontSize: 18, 
+    fontWeight: 'bold' 
+  },
+  infoText: { 
+    textAlign: 'center', 
+    fontSize: 11, 
+    marginTop: 20, 
+    paddingHorizontal: 20, 
+    lineHeight: 16 
+  }
 });

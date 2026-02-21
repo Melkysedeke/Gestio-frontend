@@ -1,146 +1,147 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from '../services/api';
-import { useThemeStore } from './themeStore'; // <--- IMPORTANTE: Importar o store de tema
-
-interface UserSettings {
-  theme?: 'light' | 'dark';
-  notifications?: boolean;
-  last_opened_wallet?: number;
-  [key: string]: any;
-}
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  avatar: string | null;
-  // A nova coluna JSONB do banco vem aqui
-  settings?: UserSettings;
-  // Mantemos isso para facilitar o acesso no front (atalho)
-  last_opened_wallet?: number | null;
-}
+import { database } from '../database'; 
+import User from '../database/models/User'; 
+import { seedCategories } from '../database/seeds'; 
+import { useThemeStore } from './themeStore'; 
 
 interface AuthState {
-  token: string | null;
   user: User | null;
   isLoading: boolean;
   hasWallets: boolean;
+  hideValues: boolean;
   setHasWallets: (value: boolean) => void;
-  // Atualizei a assinatura do signIn para ser mais genérica se precisar
-  signIn: (user: User, token: string) => Promise<void>;
-  signOut: () => Promise<void>;
-  // Aceita qualquer pedaço do objeto User ou Settings
-  updateUserSetting: (settings: Partial<User> & Partial<UserSettings>) => Promise<void>;
   loadStorageData: () => Promise<void>;
+  signInAsGuest: (name: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  updateUserSetting: (newSettings: Partial<any>) => Promise<void>;
+  setUser: (user: User | null) => void;
+  runSeed: () => Promise<void>;
+  purgeDatabase: () => Promise<void>;
+  toggleHideValues: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
-  token: null,
   isLoading: true,
   hasWallets: false,
-
-  setHasWallets: (value: boolean) => set({ hasWallets: value }),
-
-  signIn: async (user, token) => {
+  hideValues: false,
+  setHasWallets: (value) => set({ hasWallets: value }),
+  setUser: (user) => set({ user }),
+  toggleHideValues: () => set((state) => ({ hideValues: !state.hideValues })),
+  
+  runSeed: async () => {
     try {
-      api.defaults.headers.authorization = `Bearer ${token}`;
-      
-      // --- LÓGICA NOVA: Normalização ---
-      // Se o backend mandar settings.last_opened_wallet, copiamos para a raiz do user
-      // para manter compatibilidade com seu código existente que usa user.last_opened_wallet
-      if (user.settings?.last_opened_wallet) {
-        user.last_opened_wallet = user.settings.last_opened_wallet;
-      }
-
-      // Sincroniza o Tema imediatamente ao logar
-      if (user.settings?.theme) {
-        useThemeStore.getState().setTheme(user.settings.theme);
-      }
-      // ---------------------------------
-
-      await AsyncStorage.multiSet([
-        ['@gestio:user', JSON.stringify(user)],
-        ['@gestio:token', token],
-      ]);
-      
-      set({ user, token, hasWallets: false }); 
+      await seedCategories();
     } catch (error) {
-      console.error('Erro crítico ao salvar login:', error);
-    }
-  },
-
-  signOut: async () => {
-    try {
-      await AsyncStorage.multiRemove(['@gestio:user', '@gestio:token']);
-      api.defaults.headers.authorization = ''; 
-      
-      // Opcional: Voltar para tema light ao sair
-      useThemeStore.getState().setTheme('light');
-      
-      set({ user: null, token: null, hasWallets: false });
-    } catch (error) {
-      console.error('Erro ao fazer logout:', error);
-    }
-  },
-
-  updateUserSetting: async (newSettings) => {
-    // 1. Atualização Otimista (Local)
-    set((state) => {
-      if (!state.user) return {};
-
-      // Mescla as configurações novas tanto na raiz quanto dentro de settings
-      const updatedUser = { 
-        ...state.user, 
-        ...newSettings, // Atualiza raiz (ex: last_opened_wallet)
-        settings: {
-            ...state.user.settings,
-            ...newSettings // Atualiza o JSON interno (ex: theme)
-        }
-      };
-      
-      // Persiste localmente
-      AsyncStorage.setItem('@gestio:user', JSON.stringify(updatedUser)).catch(console.error);
-      
-      return { user: updatedUser };
-    });
-
-    // 2. Sincronização com Backend (Universal)
-    try {
-        // Agora mandamos o objeto newSettings inteiro. 
-        // O backend aceita { "theme": "dark" } ou { "last_opened_wallet": 1 } genericamente.
-        await api.patch('/users/settings', newSettings);
-    } catch (err: any) {
-        console.log("Sync offline/erro:", err.message);
+      console.error('Erro ao rodar seed de categorias:', error);
     }
   },
 
   loadStorageData: async () => {
     try {
-      const [storedUser, storedToken] = await AsyncStorage.multiGet(['@gestio:user', '@gestio:token']);
+      const usersCollection = database.get<User>('users');
+      const users = await usersCollection.query().fetch();
 
-      if (storedToken[1] && storedUser[1]) {
-        const user = JSON.parse(storedUser[1]);
-        const token = storedToken[1];
+      if (users.length > 0) {
+        const currentUser = users[0];
+        const walletsCount = await database.get('wallets').query().fetchCount();
+        await get().runSeed();
 
-        api.defaults.headers.authorization = `Bearer ${token}`;
-        
-        // --- LÓGICA NOVA: Recuperar Tema ---
-        // Se o usuário reabrir o app, aplicamos o tema salvo
-        if (user.settings?.theme) {
-            useThemeStore.getState().setTheme(user.settings.theme);
-        }
-        // -----------------------------------
-        
-        console.log("=== DADOS RECUPERADOS ===", user.name);
-        set({ token, user, isLoading: false });
+        set({ 
+          user: currentUser, 
+          isLoading: false, 
+          hasWallets: walletsCount > 0 
+        });
       } else {
-        set({ isLoading: false });
+        set({ user: null, isLoading: false, hasWallets: false });
       }
     } catch (error) {
       console.error('Erro ao carregar storage:', error);
-      set({ isLoading: false });
+      set({ isLoading: false, hasWallets: false });
     }
+  },
+
+  signInAsGuest: async (name: string) => {
+    try {
+      let newUser: User | undefined;
+      await database.write(async () => {
+        const usersCollection = database.get<User>('users');
+        newUser = await usersCollection.create((u: any) => {
+          u.name = name;
+          u.email = `guest_${Date.now()}@local`;
+          u.avatar = 'default';
+          u.password = '';
+          u.settings = { notifications: true, last_opened_wallet: null };
+        });
+      });
+
+      await get().runSeed();
+      if (newUser) set({ user: newUser, hasWallets: false });
+    } catch (error) {
+      console.error('Erro ao criar usuário local:', error);
+    }
+  },
+
+  updateUserSetting: async (newSettings: Partial<any>) => {
+    const currentUser = get().user;
+    if (!currentUser) return;
+
+    try {
+      await database.write(async () => {
+        await currentUser.update((u: any) => {
+          if (newSettings.name) u.name = newSettings.name;
+          if (newSettings.email) u.email = newSettings.email;
+          if (newSettings.avatar) u.avatar = newSettings.avatar;
+
+          const oldSettings = u.settings || {};
+          u.settings = { ...oldSettings, ...newSettings };
+        });
+      });
+
+      if (newSettings.theme) {
+        useThemeStore.getState().setTheme(newSettings.theme);
+      }
+
+      // 🔥 O TRUQUE DE MESTRE:
+      // Criamos um clone exato do usuário com uma NOVA referência de memória,
+      // mas que herda todas as funções originais do WatermelonDB.
+      // O Zustand vê a nova referência e atualiza o MainHeader e o Settings na mesma hora!
+      const userClone = Object.assign(
+        Object.create(Object.getPrototypeOf(currentUser)),
+        currentUser
+      );
+      
+      set({ user: userClone });
+
+    } catch (error) {
+      console.error('Erro ao atualizar configurações do usuário:', error);
+      throw error;
+    }
+  },
+
+  purgeDatabase: async () => {
+    try {
+      await database.write(async () => {
+        // Buscamos os registros para deletar
+        const users = await database.get<User>('users').query().fetch();
+        const wallets = await database.get('wallets').query().fetch();
+        
+        // Destruição permanente no SQLite
+        const allRecords = [...users, ...wallets];
+        for (const record of allRecords) {
+          await record.destroyPermanently();
+        }
+      });
+
+      // Limpa o estado da memória
+      set({ user: null, hasWallets: false });
+    } catch (error) {
+      console.error('Erro ao purgar banco:', error);
+      throw error;
+    }
+  },
+
+  signOut: async () => {
+    set({ user: null, hasWallets: false });
   },
 }));

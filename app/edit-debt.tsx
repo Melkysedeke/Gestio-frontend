@@ -1,20 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar 
+  View, 
+  Text, 
+  StyleSheet, 
+  TextInput, 
+  TouchableOpacity, 
+  ScrollView, 
+  Alert, 
+  ActivityIndicator, 
+  KeyboardAvoidingView, 
+  Platform, 
+  StatusBar 
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import api from '../src/services/api'; 
-import { useThemeColor } from '@/hooks/useThemeColor'; 
+
+// Banco de Dados e Models
+import { database } from '../src/database';
+import { useThemeColor } from '@/hooks/useThemeColor';
 
 export default function EditDebtScreen() {
   const { id } = useLocalSearchParams();
-  const { colors } = useThemeColor(); 
+  const { colors, isDark } = useThemeColor();
   
   const [title, setTitle] = useState('');
   const [amountRaw, setAmountRaw] = useState(''); 
-  
   const [name, setName] = useState('');
   const [date, setDate] = useState(new Date());
   const [type, setType] = useState<'payable' | 'receivable'>('payable');
@@ -24,24 +35,18 @@ export default function EditDebtScreen() {
 
   useEffect(() => {
     async function loadDebt() {
+      if (!id) return;
       try {
-        const response = await api.get(`/debts/${id}`);
-        const debt = response.data;
-        setTitle(debt.title);
+        const debt = await database.get('debts').find(id as string) as any;
         
-        // CONVERSÃO IMPORTANTE: Do banco (float) para Raw String (inteiro)
-        // Ex: 150.50 -> "15050"
+        setTitle(debt.title);
         const rawValue = (debt.amount * 100).toFixed(0);
         setAmountRaw(rawValue);
-
-        setName(debt.entity_name || '');
-        
-        const dateObj = new Date(debt.due_date);
-        setDate(new Date(dateObj.getUTCFullYear(), dateObj.getUTCMonth(), dateObj.getUTCDate()));
-        
+        setName(debt.entityName || '');
+        setDate(new Date(debt.dueDate));
         setType(debt.type);
-      } catch (error) {
-        Alert.alert('Erro', 'Não foi possível carregar os dados.');
+      } catch {
+        Alert.alert('Erro', 'Não foi possível encontrar este registro.');
         router.back();
       } finally {
         setLoading(false);
@@ -50,10 +55,9 @@ export default function EditDebtScreen() {
     loadDebt();
   }, [id]);
 
-  const themeColor = type === 'payable' ? '#fa6238' : '#1773cf';
+  const themeColor = type === 'payable' ? colors.danger : colors.primary;
   const nameLabel = type === 'payable' ? 'Devo para:' : 'Quem me deve:';
 
-  // --- MÁSCARA MONETÁRIA ---
   const handleAmountChange = (text: string) => {
     const onlyNumbers = text.replace(/\D/g, "");
     setAmountRaw(onlyNumbers);
@@ -64,26 +68,27 @@ export default function EditDebtScreen() {
     const value = parseInt(amountRaw) / 100;
     return value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   };
-  // -------------------------
 
   async function handleUpdate() {
     const finalAmount = amountRaw ? parseInt(amountRaw) / 100 : 0;
-
     if (!title || finalAmount <= 0) {
         return Alert.alert('Atenção', 'Preencha o título e um valor válido.');
     }
 
     setSaving(true);
     try {
-      await api.put(`/debts/${id}`, {
-        title: title.trim(),
-        entity_name: name.trim(),
-        amount: finalAmount, // Envia float correto
-        due_date: date.toISOString().split('T')[0]
+      const debtRecord = await database.get('debts').find(id as string);
+      await database.write(async () => {
+        await debtRecord.update((d: any) => {
+          d.title = title.trim();
+          d.entityName = name.trim();
+          d.amount = finalAmount;
+          d.dueDate = date;
+        });
       });
       router.back();
-    } catch (error) {
-      Alert.alert('Erro', 'Falha ao atualizar.');
+    } catch {
+      Alert.alert('Erro', 'Falha ao atualizar registro local.');
     } finally {
       setSaving(false);
     }
@@ -94,9 +99,12 @@ export default function EditDebtScreen() {
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Excluir', style: 'destructive', onPress: async () => {
         try {
-          await api.delete(`/debts/${id}`);
+          const debtRecord = await database.get('debts').find(id as string);
+          await database.write(async () => {
+            await debtRecord.markAsDeleted();
+          });
           router.back();
-        } catch (error) {
+        } catch {
           Alert.alert('Erro', 'Falha ao excluir.');
         }
       }}
@@ -112,19 +120,18 @@ export default function EditDebtScreen() {
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       <StatusBar backgroundColor={themeColor} barStyle="light-content" />
       
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-        
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={[styles.header, { backgroundColor: themeColor }]}>
           <View style={styles.headerTop}>
-            <TouchableOpacity onPress={() => router.back()}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.headerAction}>
               <MaterialIcons name="arrow-back" size={24} color="#FFF" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Editar Registro</Text>
-            <TouchableOpacity onPress={handleDelete}>
+            <TouchableOpacity onPress={handleDelete} style={styles.headerAction}>
               <MaterialIcons name="delete-outline" size={24} color="#FFF" />
             </TouchableOpacity>
           </View>
@@ -133,8 +140,8 @@ export default function EditDebtScreen() {
             <Text style={styles.currencySymbol}>R$</Text>
             <TextInput
               style={styles.amountInput}
-              value={getFormattedAmount()} // Exibe formatado
-              onChangeText={handleAmountChange} // Processa máscara
+              value={getFormattedAmount()}
+              onChangeText={handleAmountChange}
               keyboardType="numeric"
               placeholderTextColor="rgba(255,255,255,0.6)"
             />
@@ -143,6 +150,7 @@ export default function EditDebtScreen() {
           <TouchableOpacity 
             style={styles.headerDateButton} 
             onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.7}
           >
             <MaterialIcons name="event" size={14} color="#FFF" />
             <Text style={styles.headerDateText}>
@@ -182,6 +190,7 @@ export default function EditDebtScreen() {
             style={[styles.saveButton, { backgroundColor: themeColor }]} 
             onPress={handleUpdate}
             disabled={saving}
+            activeOpacity={0.8}
           >
             {saving ? (
               <ActivityIndicator color="#FFF" />
@@ -200,7 +209,9 @@ export default function EditDebtScreen() {
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  scrollContent: { flexGrow: 1 },
   header: { 
     paddingTop: Platform.OS === 'ios' ? 60 : 50, 
     paddingBottom: 25, 
@@ -209,12 +220,31 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 30, 
     alignItems: 'center' 
   },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 10 },
+  headerTop: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    width: '100%', 
+    marginBottom: 10 
+  },
+  headerAction: {
+    padding: 4
+  },
   headerTitle: { fontSize: 16, color: '#FFF', fontWeight: 'bold' },
-  amountContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 15 },
+  amountContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginBottom: 15 
+  },
   currencySymbol: { fontSize: 24, color: 'rgba(255,255,255,0.8)', marginRight: 5 },
-  amountInput: { fontSize: 42, fontWeight: 'bold', color: '#FFF', minWidth: 120, textAlign: 'center' },
-  
+  amountInput: { 
+    fontSize: 42, 
+    fontWeight: 'bold', 
+    color: '#FFF', 
+    minWidth: 120, 
+    textAlign: 'center' 
+  },
   headerDateButton: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -225,12 +255,20 @@ const styles = StyleSheet.create({
     gap: 6
   },
   headerDateText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
-
   form: { padding: 24 },
   label: { fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 15 },
   inputCompact: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 16 },
-  
-  saveButton: { marginTop: 35, paddingVertical: 16, borderRadius: 15, alignItems: 'center', elevation: 3 },
+  saveButton: { 
+    marginTop: 35, 
+    paddingVertical: 16, 
+    borderRadius: 15, 
+    alignItems: 'center', 
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4
+  },
   saveButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
   infoText: { textAlign: 'center', fontSize: 11, marginTop: 20, paddingHorizontal: 20 }
 });

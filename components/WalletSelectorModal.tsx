@@ -4,22 +4,26 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuthStore } from '../src/stores/authStore';
-import api from '../src/services/api';
-import { useThemeColor } from '@/hooks/useThemeColor'; // <--- Hook de Tema
+import { useThemeColor } from '@/hooks/useThemeColor';
+
+// Importações do WatermelonDB
+import { database } from '../src/database';
+import Wallet from '../src/database/models/Wallet';
 
 interface WalletSelectorProps {
   visible: boolean;
   onClose: () => void;
-  onSelect: (walletId: number) => void;
+  onSelect: (walletId: string) => void;
   onAddPress: () => void;
 }
 
 export default function WalletSelectorModal({ visible, onClose, onSelect, onAddPress }: WalletSelectorProps) {
   const user = useAuthStore(state => state.user);
-  const [wallets, setWallets] = useState<any[]>([]);
+  const hideValues = useAuthStore(state => state.hideValues);
+  
+  const [wallets, setWallets] = useState<Wallet[]>([]);
   const [loading, setLoading] = useState(false);
   
-  // Hook de Cores
   const { colors, isDark } = useThemeColor();
 
   const loadWallets = useCallback(async () => {
@@ -27,10 +31,10 @@ export default function WalletSelectorModal({ visible, onClose, onSelect, onAddP
 
     setLoading(true);
     try {
-      const response = await api.get('/wallets/');
-      setWallets(response.data);
+      const allWallets = await database.get<Wallet>('wallets').query().fetch();
+      setWallets(allWallets);
     } catch (error) {
-      console.log("Erro ao carregar carteiras:", error);
+      console.error("Erro ao carregar carteiras:", error);
     } finally {
       setLoading(false);
     }
@@ -42,6 +46,11 @@ export default function WalletSelectorModal({ visible, onClose, onSelect, onAddP
     }
   }, [visible, loadWallets]); 
 
+  const formatDisplayCurrency = (value: number) => {
+    if (hideValues) return "R$ •••••";
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade">
       <TouchableWithoutFeedback onPress={onClose}>
@@ -51,20 +60,21 @@ export default function WalletSelectorModal({ visible, onClose, onSelect, onAddP
               <Text style={[styles.title, { color: colors.text }]}>Minhas Carteiras</Text>
               
               {loading ? (
-                <ActivityIndicator color={colors.primary} style={{ padding: 20 }} />
+                <ActivityIndicator color={colors.primary} style={styles.loader} />
               ) : (
                 <FlatList
                   data={wallets}
-                  keyExtractor={item => String(item.id)}
+                  keyExtractor={item => item.id}
+                  showsVerticalScrollIndicator={false}
                   renderItem={({ item }) => {
-                    const isSelected = user?.last_opened_wallet === item.id;
+                    const isSelected = user?.settings?.last_opened_wallet === item.id;
                     
-                    // Lógica de cores do item
                     const itemBackgroundColor = isSelected 
                         ? (isDark ? 'rgba(23, 115, 207, 0.15)' : '#f0f9ff') 
                         : (isDark ? colors.background : '#f8fafc');
                     
                     const itemBorderColor = isSelected ? colors.primary : colors.border;
+                    const iconBgColor = isDark ? colors.card : '#e0f2fe';
 
                     return (
                       <TouchableOpacity 
@@ -75,19 +85,25 @@ export default function WalletSelectorModal({ visible, onClose, onSelect, onAddP
                                 borderColor: itemBorderColor 
                             }
                         ]}
+                        activeOpacity={0.7}
                         onPress={() => onSelect(item.id)}
                       >
                         <View style={styles.row}>
-                          <View style={[
-                              styles.iconBg, 
-                              { backgroundColor: isDark ? colors.card : '#e0f2fe' } // Fundo do ícone
-                            ]}>
+                          <View style={[styles.iconBg, { backgroundColor: iconBgColor }]}>
                             <MaterialIcons name="account-balance-wallet" size={24} color={colors.primary} />
                           </View>
-                          <View>
-                            <Text style={[styles.itemName, { color: colors.text }]}>{item.name}</Text>
+                          
+                          {/* ✅ TextContainer controla o limite de tamanho para não empurrar o ícone */}
+                          <View style={styles.textContainer}>
+                            <Text 
+                              style={[styles.itemName, { color: colors.text }]}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              {item.name}
+                            </Text>
                             <Text style={[styles.itemBalance, { color: colors.textSub }]}>
-                              {Number(item.balance || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              {formatDisplayCurrency(Number(item.balance || 0))}
                             </Text>
                           </View>
                         </View>
@@ -101,9 +117,9 @@ export default function WalletSelectorModal({ visible, onClose, onSelect, onAddP
                 />
               )}
 
-              {/* Botão Adicionar Nova */}
               <TouchableOpacity 
                 style={styles.addButton}
+                activeOpacity={0.7}
                 onPress={() => {
                    onClose();    
                    onAddPress(); 
@@ -124,15 +140,17 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
   modalContent: { borderRadius: 20, padding: 20, maxHeight: '60%' },
   title: { fontSize: 18, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' },
+  loader: { padding: 20 },
   item: { 
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', 
     padding: 16, borderRadius: 12, marginBottom: 8,
     borderWidth: 1
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  textContainer: { flex: 1, paddingRight: 10 }, // ✅ Impede o texto de empurrar outros elementos
   iconBg: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   itemName: { fontSize: 16, fontWeight: '600' },
-  itemBalance: { fontSize: 14 },
+  itemBalance: { fontSize: 14, marginTop: 2 },
   addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, marginTop: 8, gap: 8 },
   addText: { fontWeight: 'bold', fontSize: 16 }
 });

@@ -1,132 +1,87 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator, StatusBar 
+  View, Text, StyleSheet, TextInput, TouchableOpacity, 
+  KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator, StatusBar 
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
+// Banco de Dados e Models
+import { database } from '../src/database';
 import { useAuthStore } from '../src/stores/authStore';
-import api from '../src/services/api';
-import { useThemeColor } from '@/hooks/useThemeColor'; // Garanta que o caminho do hook está certo
+import { useThemeColor } from '@/hooks/useThemeColor';
+import Transaction from '../src/database/models/Transaction';
+import Category from '../src/database/models/Category';
 
 export default function EditTransactionScreen() {
-  const params = useLocalSearchParams();
-  const user = useAuthStore(state => state.user);
+  const { id } = useLocalSearchParams();
   const { colors, isDark } = useThemeColor();
 
   // Estados de Dados
-  const [loadingData, setLoadingData] = useState(true); 
-  const [transactionData, setTransactionData] = useState<any>(null); 
+  const [loadingData, setLoadingData] = useState(true);
+  const [transaction, setTransaction] = useState<Transaction | null>(null);
+  const [dbCategories, setDbCategories] = useState<Category[]>([]);
   
   // Estados do Formulário
-  const [amountRaw, setAmountRaw] = useState(''); 
+  const [amountRaw, setAmountRaw] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [date, setDate] = useState(new Date());
-  
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [dbCategories, setDbCategories] = useState<any[]>([]);
 
-  // Tipo base (receita ou despesa para cores)
-  const type = (transactionData?.type || params.type || 'expense') as 'expense' | 'income';
-  const themeColor = type === 'expense' ? '#fa6238' : '#0bda5b';
+  const type = (transaction?.type || 'expense') as 'expense' | 'income';
+  const themeColor = type === 'expense' ? colors.danger : colors.success;
 
-  // --- BUSCA DADOS REAIS DO BANCO ---
+  // Identificação de Vínculos
+  const isLinkedDebt = useMemo(() => !!(transaction?.debtId || (transaction as any)?._raw?.debt_id), [transaction]);
+  const isLinkedGoal = useMemo(() => !!(transaction?.goalId || (transaction as any)?._raw?.goal_id), [transaction]);
+  const isLinked = isLinkedDebt || isLinkedGoal;
+
   useEffect(() => {
     async function fetchData() {
+      if (!id) return;
       try {
-        if (!params.id) return;
+        const trans = await database.get<Transaction>('transactions').find(id as string);
+        const rawData = (trans as any)._raw;
 
-        // 1. Busca Transação
-        const transRes = await api.get(`/transactions/${params.id}`);
-        const trans = transRes.data;
+        setTransaction(trans);
+        setAmountRaw((Number(rawData.amount) * 100).toFixed(0));
+        setDescription(rawData.description || '');
+        setDate(new Date(rawData.transaction_date));
+
+        const allCats = await database.get<Category>('categories').query().fetch();
         
-        // 2. Busca Categorias
-        const catRes = await api.get('/categories');
-        const allCats = catRes.data;
+        let filtered: Category[] = [];
 
-        setTransactionData(trans);
-
-        // Preenche formulário
-        const val = parseFloat(String(trans.amount));
-        setAmountRaw((val * 100).toFixed(0));
-        setDescription(trans.description);
-        setDate(new Date(trans.transaction_date));
-
-        // --- LÓGICA DE DECISÃO E FILTRO ---
-        const hasDebt = trans.debt_id && Number(trans.debt_id) > 0;
-        const hasGoal = trans.goal_id && Number(trans.goal_id) > 0;
-
-        let filteredCats = [];
-
-        if (hasDebt) {
-            // Caso 1: DÍVIDA -> Filtra tipo 'debts'
-            filteredCats = allCats.filter((c: any) => c.type === 'debts');
-        
-        } else if (hasGoal) {
-            // Caso 2: OBJETIVO -> Filtra tipo 'investment'
-            filteredCats = allCats.filter((c: any) => c.type === 'investment');
-            
-            // Fallback: Se não achar 'investment', tenta por nome
-            if (filteredCats.length === 0) {
-               filteredCats = allCats.filter((c: any) => 
-                  c.name.toLowerCase().includes('invest') || 
-                  c.name.toLowerCase().includes('resgate') ||
-                  c.name.toLowerCase().includes('meta')
-               );
-            }
-            // Último recurso: mostra a categoria atual
-            if (filteredCats.length === 0) {
-               filteredCats = allCats.filter((c:any) => c.id === trans.category_id);
-            }
-
+        if (rawData.debt_id) {
+          filtered = allCats.filter(c => c.type === 'debts');
+        } else if (rawData.goal_id) {
+          filtered = allCats.filter(c => c.type === 'goals');
+          if (filtered.length === 0) {
+            filtered = [{ id: 'goal-cat', name: 'Objetivo', icon: 'savings', color: colors.primary } as any];
+          }
         } else {
-            // Caso 3: NORMAL -> Filtra pelo tipo (income/expense)
-            filteredCats = allCats.filter((cat: any) => cat.type === trans.type);
+          filtered = allCats.filter(c => c.type === trans.type);
+        }
+        setDbCategories(filtered);
+
+        const currentCat = allCats.find(c => c.name === rawData.category_name);
+        if (currentCat) {
+          setSelectedCategoryId(currentCat.id);
+        } else if (rawData.goal_id) {
+          setSelectedCategoryId(filtered[0]?.id || 'goal-cat');
         }
 
-        // Define as categorias na tela
-        if (filteredCats.length > 0) {
-            setDbCategories(filteredCats);
-            
-            // Tenta selecionar a categoria que já estava salva
-            const currentCat = filteredCats.find((c:any) => c.id === Number(trans.category_id));
-            if (currentCat) {
-                setSelectedCategoryId(currentCat.id);
-            } else {
-                setSelectedCategoryId(filteredCats[0].id);
-            }
-        } else {
-            // Fallback extremo
-            setDbCategories(allCats);
-            setSelectedCategoryId(trans.category_id);
-        }
-
-      } catch (error) {
-        Alert.alert("Erro", "Falha ao carregar os dados.");
+      } catch {
         router.back();
       } finally {
         setLoadingData(false);
       }
     }
-
     fetchData();
-  }, [params.id]);
-
-  // --- MEMO DO ESTADO DE TRAVAMENTO ---
-  const isLinked = useMemo(() => {
-      const isDebt = transactionData?.debt_id && Number(transactionData.debt_id) > 0;
-      const isGoal = transactionData?.goal_id && Number(transactionData.goal_id) > 0;
-      return !!isDebt || !!isGoal;
-  }, [transactionData]);
-
-  // --- HANDLERS ---
-  const handleAmountChange = (text: string) => {
-    const onlyNumbers = text.replace(/\D/g, "");
-    setAmountRaw(onlyNumbers);
-  };
+  }, [id, colors.primary]);
 
   const getFormattedAmount = () => {
     if (!amountRaw) return "0,00";
@@ -134,235 +89,368 @@ export default function EditTransactionScreen() {
     return value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   };
 
-  const onDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios'); 
-    if (selectedDate) setDate(selectedDate);
-  };
-
   async function handleUpdate() {
     const finalAmount = amountRaw ? parseInt(amountRaw) / 100 : 0;
-    
     if (finalAmount <= 0) return Alert.alert('Erro', 'Valor inválido');
-    if (!selectedCategoryId) return Alert.alert('Erro', 'Selecione uma categoria');
+    if (!transaction) return;
 
     setSaving(true);
     try {
-      const payload = {
-        wallet_id: transactionData?.wallet_id || user?.last_opened_wallet,
-        category_id: selectedCategoryId,
-        type: type,
-        amount: finalAmount, 
-        description: description,
-        transaction_date: date.toISOString(),
-        // Mantém os vínculos inalterados (segurança)
-        debt_id: transactionData?.debt_id || null,
-        goal_id: transactionData?.goal_id || null
-      };
+      const oldAmount = Number((transaction as any)._raw.amount);
+      const selectedCategory = dbCategories.find(c => c.id === selectedCategoryId);
 
-      await api.put(`/transactions/${params.id}`, payload);
+      await database.write(async () => {
+        if (isLinkedDebt) {
+          const debtId = (transaction as any)._raw.debt_id;
+          const debt = await database.get('debts').find(debtId);
+          await debt.update((d: any) => {
+            const diff = finalAmount - oldAmount;
+            d.totalPaid = (Number(d.totalPaid) || 0) + diff;
+            d.isPaid = d.totalPaid >= d.amount - 0.01;
+          });
+        } else if (isLinkedGoal) {
+          const goalId = (transaction as any)._raw.goal_id;
+          const goal = await database.get('goals').find(goalId);
+          await goal.update((g: any) => {
+            const diff = finalAmount - oldAmount;
+            const currentAmount = Number(g.currentAmount || g._raw.current_amount || 0);
+            if (type === 'expense') g.currentAmount = currentAmount + diff;
+            else g.currentAmount = currentAmount - diff;
+          });
+        }
+
+        await transaction.update((t: any) => {
+          t.amount = finalAmount;
+          t.description = description;
+          t.transactionDate = date;
+          if (!isLinked && selectedCategory) {
+            t.categoryName = selectedCategory.name;
+            t.categoryIcon = selectedCategory.icon;
+          }
+        });
+
+        const walletId = (transaction as any)._raw.wallet_id;
+        const wallet = await database.get('wallets').find(walletId);
+        await wallet.update((w: any) => {
+          const diff = finalAmount - oldAmount;
+          if (type === 'expense') w.balance -= diff;
+          else w.balance += diff;
+        });
+      });
+
       router.back();
-    } catch (error: any) {
-      Alert.alert('Erro', error.response?.data?.error || 'Não foi possível atualizar.');
+    } catch {
+      Alert.alert('Erro', 'Falha ao salvar.');
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete() {
-    let message = 'Tem certeza?';
-    if (transactionData?.debt_id) message = 'Esta transação paga uma dívida. Ao excluir, o saldo devedor voltará.';
-    if (transactionData?.goal_id) message = 'Esta transação é um aporte/resgate de objetivo. O saldo da meta será ajustado.';
+    if (!transaction) return;
+    Alert.alert('Excluir', 'Deseja apagar este registo? O valor será estornado.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Excluir', style: 'destructive', onPress: async () => {
+        try {
+          await database.write(async () => {
+            const amount = Number((transaction as any)._raw.amount);
+            const walletId = (transaction as any)._raw.wallet_id;
+            const wallet = await database.get('wallets').find(walletId);
 
-    Alert.alert(
-      'Excluir',
-      message,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Excluir', style: 'destructive', onPress: async () => {
-            try {
-              await api.delete(`/transactions/${params.id}`);
-              router.back();
-            } catch (error) { Alert.alert('Erro', 'Falha ao excluir.'); }
-        }}
-      ]
-    );
+            if (isLinkedDebt) {
+              const debtId = (transaction as any)._raw.debt_id;
+              const debt = await database.get('debts').find(debtId);
+              await debt.update((d: any) => {
+                d.totalPaid -= amount;
+                d.isPaid = false;
+              });
+            } else if (isLinkedGoal) {
+              const goalId = (transaction as any)._raw.goal_id;
+              const goal = await database.get('goals').find(goalId);
+              await goal.update((g: any) => {
+                const currentAmount = Number(g.currentAmount || g._raw.current_amount || 0);
+                if (type === 'expense') g.currentAmount = currentAmount - amount;
+                else g.currentAmount = currentAmount + amount;
+              });
+            }
+
+            await wallet.update((w: any) => {
+              if (type === 'expense') w.balance += amount;
+              else w.balance -= amount;
+            });
+
+            await transaction.markAsDeleted();
+          });
+          router.back();
+        } catch { Alert.alert('Erro', 'Falha ao excluir.'); }
+      }}
+    ]);
   }
 
-  if (loadingData) {
-      return (
-          <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background}}>
-              <ActivityIndicator size="large" color={themeColor} />
-          </View>
-      );
-  }
+  // ✅ Constantes dinâmicas para limpeza do render e correção do Dark Mode
+  const linkedBadgeBg = isDark ? '#334155' : '#e2e8f0';
+  const inputBgColor = isLinked 
+    ? (isDark ? '#334155' : '#f1f5f9') 
+    : (isDark ? '#1e293b' : '#f8fafc'); // Corrige o fundo branco no modo escuro
+  const inputTextColor = isLinked ? colors.textSub : colors.text;
+
+  if (loadingData) return <View style={styles.center}><ActivityIndicator size="large" color={themeColor} /></View>;
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
-      style={{ flex: 1, backgroundColor: colors.background }}
-    >
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar backgroundColor={themeColor} barStyle="light-content" />
-      
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         
-        {/* HEADER */}
         <View style={[styles.header, { backgroundColor: themeColor }]}>
           <View style={styles.headerTop}>
-            <TouchableOpacity onPress={() => router.back()}>
-              <MaterialIcons name="close" size={24} color="#FFF" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Editar Registro</Text>
-            <TouchableOpacity onPress={handleDelete}>
-              <MaterialIcons name="delete-outline" size={24} color="#FFF" />
-            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.back()} style={styles.headerAction}><MaterialIcons name="close" size={24} color="#FFF" /></TouchableOpacity>
+            <Text style={styles.headerTitle}>Editar Registo</Text>
+            <TouchableOpacity onPress={handleDelete} style={styles.headerAction}><MaterialIcons name="delete-outline" size={24} color="#FFF" /></TouchableOpacity>
           </View>
-
           <View style={styles.amountContainer}>
             <Text style={styles.currencySymbol}>R$</Text>
-            <TextInput
-              style={styles.amountInput}
-              value={getFormattedAmount()}
-              onChangeText={handleAmountChange}
-              keyboardType="numeric"
-              placeholderTextColor="rgba(255,255,255,0.6)"
+            <TextInput 
+              style={styles.amountInput} 
+              value={getFormattedAmount()} 
+              onChangeText={(t) => setAmountRaw(t.replace(/\D/g, ""))}
+              keyboardType="numeric" 
             />
           </View>
-
           <TouchableOpacity 
             style={styles.headerDateButton} 
-            onPress={() => setShowDatePicker(true)}
+            onPress={() => !isLinked && setShowDatePicker(true)}
+            activeOpacity={0.7}
           >
             <MaterialIcons name="event" size={14} color="#FFF" />
-            <Text style={styles.headerDateText}>
-              {date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
-            </Text>
-            <MaterialIcons name="arrow-drop-down" size={20} color="#FFF" />
+            <Text style={styles.headerDateText}>{date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</Text>
+            {!isLinked && <MaterialIcons name="arrow-drop-down" size={20} color="#FFF" />}
           </TouchableOpacity>
         </View>
 
-        {/* FORMULÁRIO */}
         <View style={styles.form}>
-          
           <View style={styles.labelRow}>
-            <Text style={[styles.label, { color: colors.textSub }]}>
-                Descrição {isLinked ? '(Vinculado)' : '(Opcional)'}
-            </Text>
+            <Text style={[styles.label, { color: colors.textSub }]}>Descrição</Text>
             {isLinked && (
-              <View style={[styles.lockBadge, { backgroundColor: isDark ? '#334155' : '#e2e8f0' }]}>
-                <MaterialIcons name="lock" size={12} color={colors.textSub} />
-                <Text style={[styles.lockText, { color: colors.textSub }]}>AUTOMÁTICO</Text>
+              <View style={[styles.linkedBadge, { backgroundColor: linkedBadgeBg }]}>
+                <MaterialIcons name="lock" size={10} color={colors.textSub} />
+                <Text style={[styles.linkedText, { color: colors.textSub }]}>Vinculado</Text>
               </View>
             )}
           </View>
           
-          <TextInput
+          <TextInput 
             style={[
               styles.inputCompact, 
               { 
-                backgroundColor: isLinked ? (isDark ? '#1e293b' : '#f1f5f9') : colors.inputBg,
-                borderColor: colors.border,
-                color: isLinked ? colors.textSub : colors.text
+                backgroundColor: inputBgColor, 
+                color: inputTextColor,
+                borderColor: colors.border // ✅ Borda dinâmica baseada no tema
               }
-            ]}
-            value={description}
-            onChangeText={setDescription}
-            editable={!isLinked} 
-            placeholder="Ex: Aluguel"
-            placeholderTextColor={colors.textSub}
+            ]} 
+            value={description} 
+            onChangeText={setDescription} 
+            editable={!isLinked}
+            placeholder="Ex: Supermercado..."
+            placeholderTextColor={colors.textSub} // ✅ Placeholder visível em qualquer tema
           />
 
-          {showDatePicker && (
-            <DateTimePicker 
-              value={date} 
-              mode="date" 
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={onDateChange}
-            />
-          )}
-
-          <Text style={[styles.label, { color: colors.textSub }]}>Categoria</Text>
+          <View style={styles.sectionLabelRow}>
+            <Text style={[styles.label, { color: colors.textSub }]}>Categoria</Text>
+            {isLinked && (
+               <View style={[styles.linkedBadge, { backgroundColor: linkedBadgeBg }]}>
+                 <MaterialIcons name="lock" size={10} color={colors.textSub} />
+                 <Text style={[styles.linkedText, { color: colors.textSub }]}>Vinculado</Text>
+               </View>
+            )}
+          </View>
+          
           <View style={styles.categoryGrid}>
             {dbCategories.map((cat) => {
-                const isSelected = selectedCategoryId === cat.id;
-                const activeColor = cat.color || themeColor;
-                const itemBg = isSelected ? (activeColor + '15') : (isDark ? colors.card : '#f8fafc');
-                const itemBorder = isSelected ? activeColor : (isDark ? colors.border : 'transparent');
-
-                return (
-                  <TouchableOpacity
-                    key={cat.id}
-                    disabled={isLinked} 
-                    style={[
-                      styles.categoryItemSmall,
-                      { backgroundColor: itemBg, borderColor: itemBorder, opacity: isLinked && !isSelected ? 0.5 : 1 }
-                    ]}
-                    onPress={() => setSelectedCategoryId(cat.id)}
-                  >
-                    <View style={[styles.iconCircle, { backgroundColor: isSelected ? 'transparent' : (activeColor + '15') }]}>
-                      <MaterialIcons name={cat.icon || 'help-outline'} size={18} color={isSelected ? activeColor : (cat.color || colors.textSub)} />
-                    </View>
-                    <Text numberOfLines={1} style={[styles.categoryTextSmall, { color: isSelected ? activeColor : colors.textSub, fontWeight: isSelected ? '700' : '400' }]}>
-                      {cat.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
+              const isSelected = selectedCategoryId === cat.id;
+              const catColor = cat.color || colors.textSub;
+              const isCatDisabled = isLinked && !isSelected;
+              
+              return (
+                <TouchableOpacity 
+                  key={cat.id} 
+                  disabled={isLinked} 
+                  onPress={() => setSelectedCategoryId(cat.id)}
+                  style={[
+                    styles.categoryItemSmall, 
+                    { 
+                      backgroundColor: isSelected ? (catColor + '15') : (isDark ? '#1e293b' : '#f8fafc'), 
+                      borderColor: isSelected ? catColor : 'transparent',
+                      opacity: isCatDisabled ? 0.2 : 1 
+                    }
+                  ]} 
+                >
+                  <View style={[styles.iconCircle, { backgroundColor: isSelected ? 'transparent' : (catColor + '10') }]}>
+                    <MaterialIcons name={(cat.icon as any) || 'help-outline'} size={20} color={catColor} />
+                  </View>
+                  <Text numberOfLines={1} style={[styles.categoryTextSmall, { color: isSelected ? colors.text : colors.textSub, fontWeight: isSelected ? 'bold' : '400' }]}>
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
             })}
-            
-            {dbCategories.length === 0 && (
-                <Text style={{textAlign: 'center', width: '100%', marginTop: 10, color: colors.textSub}}>
-                    {isLinked 
-                        ? "Categoria técnica não encontrada." 
-                        : "Nenhuma categoria disponível."}
-                </Text>
-            )}
           </View>
 
           <TouchableOpacity 
             style={[styles.saveButton, { backgroundColor: themeColor }]} 
-            onPress={handleUpdate} 
+            onPress={handleUpdate}
             disabled={saving}
           >
-            {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveButtonText}>Salvar Alterações</Text>}
+            {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveButtonText}>Guardar Alterações</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {showDatePicker && (
+        <DateTimePicker 
+          value={date} 
+          mode="date" 
+          display="default" 
+          onChange={(e, d) => { setShowDatePicker(false); if(d) setDate(d); }} 
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  scrollContent: { flexGrow: 1 },
   header: { 
-    paddingTop: Platform.OS === 'ios' ? 60 : 50, 
+    paddingTop: 60, 
     paddingBottom: 25, 
     paddingHorizontal: 20, 
     borderBottomLeftRadius: 30, 
     borderBottomRightRadius: 30, 
     alignItems: 'center' 
   },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 10 },
-  headerTitle: { fontSize: 16, color: '#FFF', fontWeight: 'bold' },
-  
-  amountContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 15 },
-  currencySymbol: { fontSize: 24, color: 'rgba(255,255,255,0.8)', marginRight: 5 },
-  amountInput: { fontSize: 42, fontWeight: 'bold', color: '#FFF', minWidth: 120, textAlign: 'center' },
-  
-  headerDateButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, gap: 6 },
-  headerDateText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
-  
-  form: { padding: 20 },
-  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, marginTop: 15 },
-  label: { fontSize: 13, fontWeight: '600' }, 
-  
-  lockBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  lockText: { fontSize: 10, fontWeight: '800' },
-  
-  inputCompact: { borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 16, marginTop: 6 },
-  
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  categoryItemSmall: { width: '23%', paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  iconCircle: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  categoryTextSmall: { fontSize: 10, marginTop: 4, textAlign: 'center' },
-  
-  saveButton: { marginTop: 35, paddingVertical: 16, borderRadius: 15, alignItems: 'center', elevation: 3 },
-  saveButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' }
+  headerTop: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    width: '100%', 
+    marginBottom: 10 
+  },
+  headerAction: { 
+    padding: 4 
+  },
+  headerTitle: { 
+    fontSize: 16, 
+    color: '#FFF', 
+    fontWeight: 'bold' 
+  },
+  amountContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginBottom: 15 
+  },
+  currencySymbol: { 
+    fontSize: 24, 
+    color: 'rgba(255,255,255,0.8)', 
+    marginRight: 5 
+  },
+  amountInput: { 
+    fontSize: 42, 
+    fontWeight: 'bold', 
+    color: '#FFF', 
+    minWidth: 120, 
+    textAlign: 'center' 
+  },
+  headerDateButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: 'rgba(255,255,255,0.2)', 
+    paddingHorizontal: 12, 
+    paddingVertical: 6, 
+    borderRadius: 20, 
+    gap: 6 
+  },
+  headerDateText: { 
+    color: '#FFF', 
+    fontSize: 13, 
+    fontWeight: '600' 
+  },
+  form: { 
+    padding: 20 
+  },
+  labelRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 6 
+  },
+  sectionLabelRow: {
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 6,
+    marginTop: 20
+  },
+  label: { 
+    fontSize: 13, 
+    fontWeight: '600' 
+  },
+  linkedBadge: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingHorizontal: 8, 
+    paddingVertical: 4, 
+    borderRadius: 12, 
+    gap: 4 
+  },
+  linkedText: { 
+    fontSize: 10, 
+    fontWeight: 'bold', 
+    textTransform: 'uppercase' 
+  },
+  inputCompact: { 
+    borderWidth: 1, 
+    borderRadius: 12, 
+    padding: 14, 
+    fontSize: 16, 
+    // ✅ borderColor: '#EEEEEE' removido daqui (agora é dinâmico)
+  },
+  categoryGrid: { 
+    flexDirection: 'row', 
+    flexWrap: 'wrap', 
+    gap: 10, 
+    marginTop: 10 
+  },
+  categoryItemSmall: { 
+    width: '22%', 
+    paddingVertical: 12, 
+    borderRadius: 16, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    borderWidth: 1.5 
+  },
+  iconCircle: { 
+    width: 40, 
+    height: 40, 
+    borderRadius: 20, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginBottom: 4 
+  },
+  categoryTextSmall: { 
+    fontSize: 10, 
+    textAlign: 'center' 
+  },
+  saveButton: { 
+    marginTop: 30, 
+    paddingVertical: 16, 
+    borderRadius: 15, 
+    alignItems: 'center' 
+  },
+  saveButtonText: { 
+    color: '#FFF', 
+    fontSize: 18, 
+    fontWeight: 'bold' 
+  }
 });

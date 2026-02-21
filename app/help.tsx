@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
 import { 
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Linking, Platform 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  StatusBar, 
+  Linking, 
+  Platform 
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { useAuthStore } from '../src/stores/authStore';
 
 const FAQ_ITEMS = [
   { 
@@ -16,17 +24,20 @@ const FAQ_ITEMS = [
     answer: 'Objetivos funcionam como cofrinhos. Ao depositar neles, o valor sai do seu saldo disponível. Ao resgatar, o valor volta para a carteira.' 
   },
   { 
-    question: 'Posso exportar meus dados?', 
-    answer: 'Atualmente estamos trabalhando nessa funcionalidade para versões futuras.' 
+    question: 'O aplicativo funciona offline?', 
+    answer: 'Sim! Agora o Gestio utiliza um banco de dados local (WatermelonDB). Seus dados ficam salvos no seu celular e serão sincronizados quando você criar uma conta oficial.' 
   },
   { 
-    question: 'O aplicativo funciona offline?', 
-    answer: 'Algumas funções sim, mas para sincronizar os dados e salvar no banco, é necessário internet.' 
+    question: 'Meus dados estão seguros?', 
+    answer: 'No modo convidado, os dados residem apenas no seu aparelho. Recomendamos criar uma conta oficial para garantir o backup na nuvem.' 
   },
 ];
 
 export default function HelpScreen() {
+  const user = useAuthStore(state => state.user);
+  const isGuest = user?.email?.includes('@local');
   const { colors, isDark } = useThemeColor();
+
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
   const toggleExpand = (index: number) => {
@@ -37,14 +48,17 @@ export default function HelpScreen() {
     if (type === 'email') {
       Linking.openURL('mailto:suporte@gestio.com?subject=Ajuda Gestio');
     } else {
-      // Exemplo de link para WhatsApp (substitua pelo número real se tiver)
       Linking.openURL('https://wa.me/5571982903278');
     }
   };
 
+  // ✅ Constantes de cor calculadas fora do loop
+  const guestWarningBg = isDark ? 'rgba(23, 115, 207, 0.1)' : '#e0f2fe';
+  const faqBodyBg = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)';
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       {/* HEADER */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
@@ -52,13 +66,23 @@ export default function HelpScreen() {
           <MaterialIcons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Ajuda e Suporte</Text>
-        <View style={{ width: 24 }} /> 
+        <View style={styles.placeholderView} /> 
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         
-        {/* CONTACT CARDS */}
+        {/* AVISO MODO CONVIDADO */}
+        {isGuest && (
+          <View style={[styles.guestWarning, { backgroundColor: guestWarningBg, borderColor: colors.primary }]}>
+            <MaterialIcons name="cloud-off" size={20} color={colors.primary} />
+            <Text style={[styles.guestWarningText, { color: colors.text }]}>
+              Você está usando uma <Text style={styles.bold}>Conta Local</Text>. O suporte técnico pode ter limitações para acessar seus registros.
+            </Text>
+          </View>
+        )}
+
         <Text style={[styles.sectionTitle, { color: colors.textSub }]}>Fale Conosco</Text>
+        
         <View style={styles.contactRow}>
           <TouchableOpacity 
             style={[styles.contactCard, { backgroundColor: colors.card, borderColor: colors.border }]} 
@@ -72,12 +96,11 @@ export default function HelpScreen() {
             style={[styles.contactCard, { backgroundColor: colors.card, borderColor: colors.border }]} 
             onPress={() => handleContact('email')}
           >
-             <MaterialIcons name="email" size={28} color="#1773cf" />
+             <MaterialIcons name="email" size={28} color={colors.primary} />
              <Text style={[styles.contactText, { color: colors.text }]}>E-mail</Text>
           </TouchableOpacity>
         </View>
 
-        {/* FAQ SECTION */}
         <Text style={[styles.sectionTitle, { color: colors.textSub, marginTop: 24 }]}>Perguntas Frequentes</Text>
         
         <View style={styles.faqContainer}>
@@ -98,7 +121,7 @@ export default function HelpScreen() {
                   />
                 </TouchableOpacity>
                 {isExpanded && (
-                  <View style={[styles.faqBody, { borderTopColor: colors.border }]}>
+                  <View style={[styles.faqBody, { borderTopColor: colors.border, backgroundColor: faqBodyBg }]}>
                     <Text style={[styles.faqAnswer, { color: colors.textSub }]}>{item.answer}</Text>
                   </View>
                 )}
@@ -107,9 +130,8 @@ export default function HelpScreen() {
           })}
         </View>
 
-        {/* APP INFO */}
         <View style={styles.footer}>
-          <Text style={[styles.versionText, { color: colors.textSub }]}>Gestio Mobile v1.0.0</Text>
+          <Text style={[styles.versionText, { color: colors.textSub }]}>Gestio Mobile v1.0.0 (Offline Mode)</Text>
         </View>
 
       </ScrollView>
@@ -118,32 +140,105 @@ export default function HelpScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { 
+    flex: 1 
+  },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingTop: 60, paddingBottom: 15,
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between',
+    paddingHorizontal: 20, 
+    paddingTop: Platform.OS === 'ios' ? 60 : 40, 
+    paddingBottom: 15,
     borderBottomWidth: 1,
   },
-  backButton: { padding: 4 },
-  title: { fontSize: 18, fontWeight: 'bold' },
-  
-  content: { padding: 20 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', textTransform: 'uppercase', marginBottom: 12 },
-  
-  contactRow: { flexDirection: 'row', gap: 12 },
-  contactCard: {
-    flex: 1, padding: 20, borderRadius: 16, borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center', gap: 8
+  backButton: { 
+    padding: 4 
   },
-  contactText: { fontWeight: '600', fontSize: 14 },
-
-  faqContainer: { gap: 8 },
-  faqItem: { borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
-  faqHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
-  faqQuestion: { fontSize: 15, fontWeight: '600', flex: 1, paddingRight: 10 },
-  faqBody: { padding: 16, borderTopWidth: 1, backgroundColor: 'rgba(0,0,0,0.02)' },
-  faqAnswer: { fontSize: 14, lineHeight: 20 },
-
-  footer: { alignItems: 'center', marginTop: 40, marginBottom: 20 },
-  versionText: { fontSize: 12 }
+  placeholderView: { 
+    width: 24 
+  },
+  title: { 
+    fontSize: 18, 
+    fontWeight: 'bold' 
+  },
+  content: { 
+    padding: 20 
+  },
+  sectionTitle: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    textTransform: 'uppercase', 
+    marginBottom: 12 
+  },
+  guestWarning: {
+    flexDirection: 'row',
+    padding: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 12,
+    marginBottom: 24,
+    alignItems: 'center'
+  },
+  bold: {
+    fontWeight: 'bold'
+  },
+  guestWarningText: { 
+    fontSize: 13, 
+    flex: 1, 
+    lineHeight: 18 
+  },
+  contactRow: { 
+    flexDirection: 'row', 
+    gap: 12 
+  },
+  contactCard: {
+    flex: 1, 
+    padding: 20, 
+    borderRadius: 16, 
+    borderWidth: 1,
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 8
+  },
+  contactText: { 
+    fontWeight: '600', 
+    fontSize: 14 
+  },
+  faqContainer: { 
+    gap: 8 
+  },
+  faqItem: { 
+    borderRadius: 12, 
+    borderWidth: 1, 
+    overflow: 'hidden' 
+  },
+  faqHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    padding: 16 
+  },
+  faqQuestion: { 
+    fontSize: 15, 
+    fontWeight: '600', 
+    flex: 1, 
+    paddingRight: 10 
+  },
+  faqBody: { 
+    padding: 16, 
+    borderTopWidth: 1 
+  },
+  faqAnswer: { 
+    fontSize: 14, 
+    lineHeight: 20 
+  },
+  footer: { 
+    alignItems: 'center', 
+    marginTop: 40, 
+    marginBottom: 20 
+  },
+  versionText: { 
+    fontSize: 12 
+  }
 });

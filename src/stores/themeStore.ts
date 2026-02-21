@@ -2,24 +2,29 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+type ThemeMode = 'light' | 'dark' | 'system';
+
 interface ThemeState {
-  theme: 'light' | 'dark';
-  toggleTheme: () => void;
-  setTheme: (mode: 'light' | 'dark') => void;
+  theme: ThemeMode;
+  setTheme: (mode: ThemeMode) => void;
+  _hasHydrated: boolean; // Flag para saber se já carregou do disco
+  setHasHydrated: (state: boolean) => void;
 }
 
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
-      theme: 'light', // Padrão
-      toggleTheme: () => set((state) => ({ 
-        theme: state.theme === 'light' ? 'dark' : 'light' 
-      })),
+      theme: 'system',
+      _hasHydrated: false,
       setTheme: (mode) => set({ theme: mode }),
+      setHasHydrated: (state) => set({ _hasHydrated: state }),
     }),
     {
       name: 'gestio-theme-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     }
   )
 );

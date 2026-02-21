@@ -1,326 +1,327 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react'; 
 import { 
-  View, Text, StyleSheet, FlatList, TouchableOpacity, 
+  View, Text, StyleSheet, TouchableOpacity, 
   StatusBar, RefreshControl, Modal, TextInput, 
   ActivityIndicator, KeyboardAvoidingView, Platform, Alert 
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect, router } from 'expo-router';
+import { Q } from '@nozbe/watermelondb';
+import { FlashList } from '@shopify/flash-list';
 
-import api from '../../src/services/api';
+// Banco de Dados, Models e Stores
+import { database } from '../../src/database';
 import { useAuthStore } from '../../src/stores/authStore';
-import { useThemeColor } from '@/hooks/useThemeColor'; // <--- Hook de Tema
+import { useThemeColor } from '@/hooks/useThemeColor';
+import Goal from '../../src/database/models/Goal';
+import Wallet from '../../src/database/models/Wallet';
 
+// Componentes
 import MainHeader from '../../components/MainHeader';
-import WalletSelectorModal from '../../components/WalletSelectorModal';
-import CreateWalletModal from '../../components/CreateWalletModal';
-import ActionSheet from '../../components/ActionSheet';
 
 export default function GoalsScreen() {
-  const user = useAuthStore(state => state.user);
-  const updateUserSetting = useAuthStore(state => state.updateUserSetting);
-  const { colors, isDark } = useThemeColor(); // <--- Cores Dinâmicas
+  // ✅ Removido o updateUserSetting (o MainHeader cuida da carteira agora)
+  const { user } = useAuthStore();
+  const hideValues = useAuthStore(state => state.hideValues);
+  
+  const { colors, isDark } = useThemeColor();
 
-  const [goals, setGoals] = useState<any[]>([]);
-  const [wallets, setWallets] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [wallets, setWallets] = useState<Wallet[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [selectorVisible, setSelectorVisible] = useState(false);
-  const [createWalletVisible, setCreateWalletVisible] = useState(false);
-  const [actionSheetVisible, setActionSheetVisible] = useState(false);
+  // ✅ Removido o estado createWalletVisible
 
   const [actionModalVisible, setActionModalVisible] = useState(false);
-  const [selectedGoal, setSelectedGoal] = useState<any>(null);
+  const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [actionType, setActionType] = useState<'deposit' | 'withdraw'>('deposit');
   
-  // Lógica de Valor (Mask)
   const [amountRaw, setAmountRaw] = useState(''); 
   const [submitting, setSubmitting] = useState(false);
 
-  // Cores Semânticas Fixas
-  const THEME_COLOR = '#1773cf';
-  const SUCCESS_COLOR = '#0bda5b';
-  const DANGER_COLOR = '#fa6238';
+  // Constantes de tema pré-calculadas
+  const THEME_COLOR = colors.primary;
+  const SUCCESS_COLOR = colors.success; 
+  const DANGER_COLOR = colors.danger; 
+
+  const iconBgColor = isDark ? 'rgba(23, 115, 207, 0.1)' : '#f0f9ff';
+  const completedBadgeBg = isDark ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4';
+  const guardarBtnBg = isDark ? 'rgba(56, 189, 248, 0.1)' : '#f0f9ff';
+  const infoBadgeBg = isDark ? '#1e293b' : '#f1f5f9';
+  const amountWrapperBg = isDark ? '#1e293b' : '#f8fafc';
+
+  const formatDisplayCurrency = (val: number) => {
+    if (hideValues) return "R$ •••••";
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
 
   const fetchData = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const walletRes = await api.get('/wallets');
-      const allWallets = walletRes.data;
+      const allWallets = await database.get<Wallet>('wallets').query().fetch();
       setWallets(allWallets);
-
-      const savedWalletExists = allWallets.find((w: any) => w.id === user.last_opened_wallet);
-      const activeId = savedWalletExists ? savedWalletExists.id : (allWallets.length > 0 ? allWallets[0].id : null);
+      const activeId = user?.settings?.last_opened_wallet || allWallets[0]?.id;
 
       if (activeId) {
-        if (user.last_opened_wallet !== activeId) {
-           updateUserSetting({ last_opened_wallet: activeId });
-        }
-        const goalRes = await api.get(`/goals?wallet_id=${activeId}`);
-        setGoals(goalRes.data);
-      } else {
-        setGoals([]);
+        const goalRes = await database.get<Goal>('goals')
+          .query(Q.where('wallet_id', activeId))
+          .fetch();
+        setGoals(goalRes);
       }
     } catch (error) {
-      console.error(error);
+      console.error("Erro goals:", error);
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.id, user?.last_opened_wallet, updateUserSetting]);
+  }, [user?.id, user?.settings?.last_opened_wallet]);
 
   useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
 
-  const activeWallet = wallets.find(w => w.id === user?.last_opened_wallet) || wallets[0];
+  const totalSaved = useMemo(() => {
+    return goals.reduce((acc, g) => acc + Number(g.currentAmount || (g as any)._raw.current_amount || 0), 0);
+  }, [goals]);
 
-  // --- HANDLERS ---
-  const handleOpenAction = (goal: any, type: 'deposit' | 'withdraw') => {
+  const handleOpenAction = (goal: Goal, type: 'deposit' | 'withdraw') => {
     setSelectedGoal(goal);
     setActionType(type);
-    setAmountRaw(''); // Limpa valor
+    setAmountRaw('');
     setActionModalVisible(true);
   };
 
-  // Máscara Monetária (Direita -> Esquerda)
-  const handleAmountChange = (text: string) => {
-    const onlyNumbers = text.replace(/\D/g, "");
-    setAmountRaw(onlyNumbers);
-  };
+  const handleAmountChange = (text: string) => setAmountRaw(text.replace(/\D/g, ""));
 
   const getFormattedAmountInput = () => {
     if (!amountRaw) return "0,00";
-    const value = parseInt(amountRaw) / 100;
-    return value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    return (parseInt(amountRaw) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
   };
 
   const submitTransaction = async () => {
     const val = amountRaw ? parseInt(amountRaw) / 100 : 0;
+    if (!val || val <= 0 || !selectedGoal) return;
 
-    if (!val || val <= 0) return Alert.alert('Erro', 'Valor inválido');
-
-    if (actionType === 'withdraw' && val > Number(selectedGoal.current_amount)) {
-      return Alert.alert('Erro', 'Saldo insuficiente no objetivo.');
+    const currentGoalAmount = Number(selectedGoal.currentAmount || (selectedGoal as any)._raw.current_amount || 0);
+    if (actionType === 'withdraw' && val > currentGoalAmount) {
+      return Alert.alert('Aviso', 'Saldo insuficiente no objetivo.');
     }
     
     setSubmitting(true);
     try {
-      const endpoint = actionType === 'deposit' ? 'deposit' : 'withdraw';
-      await api.patch(`/goals/${selectedGoal.id}/${endpoint}`, {
-        wallet_id: activeWallet.id,
-        amount: val
+      await database.write(async () => {
+        const activeId = user?.settings?.last_opened_wallet;
+        
+        await selectedGoal.update((g: any) => {
+          g.currentAmount = actionType === 'deposit' ? currentGoalAmount + val : currentGoalAmount - val;
+        });
+
+        await database.get('transactions').create((t: any) => {
+          t.amount = val;
+          t.type = actionType === 'deposit' ? 'expense' : 'income'; 
+          t.description = `${actionType === 'deposit' ? 'Guardado em' : 'Resgate de'}: ${selectedGoal.name}`;
+          t.categoryName = 'Objetivo';
+          t.categoryIcon = 'savings';
+          t._raw.wallet_id = activeId;
+          t._raw.goal_id = selectedGoal.id; 
+          t.transactionDate = new Date();
+        });
+
+        const wallet = await database.get<Wallet>('wallets').find(activeId!);
+        await wallet.update((w) => {
+          if (actionType === 'deposit') w.balance -= val; 
+          else w.balance += val; 
+        });
       });
+
       setActionModalVisible(false);
       fetchData(); 
-    } catch (error: any) {
-      Alert.alert('Erro', error.response?.data?.error || 'Falha na transação');
-    } finally {
-      setSubmitting(false);
-    }
+      Alert.alert('Sucesso', 'Operação realizada!');
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Erro', 'Falha na operação.');
+    } finally { setSubmitting(false); }
   };
 
-  const formatCurrency = (val: string | number) => {
-    return Number(val).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  };
-
-  if (loading && !refreshing) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={THEME_COLOR} />
-      </View>
-    );
-  }
+  const activeWallet = wallets.find(w => w.id === user?.settings?.last_opened_wallet) || wallets[0];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       
+      {/* ✅ MainHeader atualizado para sincronizar com o estado global da carteira */}
       <MainHeader 
-        user={user}
         activeWallet={activeWallet}
-        onPressSelector={() => wallets.length === 0 ? setCreateWalletVisible(true) : setSelectorVisible(true)}
-        // onPressAdd removido para consistência
+        onWalletChange={fetchData} 
       />
 
-      <FlatList
-        data={goals}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={THEME_COLOR} />}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <MaterialIcons name="flag" size={60} color={colors.textSub} />
-            <Text style={[styles.emptyText, { color: colors.textSub }]}>Nenhum objetivo definido.</Text>
+      <View style={styles.headerSection}>
+        <View style={styles.compactFilterRow}>
+          <View style={styles.headerInfoGroup}>
+             <MaterialIcons name="flag" size={18} color={THEME_COLOR} />
+             <Text style={[styles.headerLabel, { color: colors.text }]}>Meus Objetivos</Text>
           </View>
-        }
-        renderItem={({ item }) => {
-          const current = Number(item.current_amount);
-          const target = Number(item.target_amount);
-          const progress = target > 0 ? Math.min((current / target) * 100, 100) : 0;
-          const isCompleted = current >= target && target > 0;
+          <View style={[styles.compactSummary, { backgroundColor: colors.card, borderColor: colors.border }]}>
+             <Text style={[styles.summaryLabel, { color: colors.textSub }]}>Total: </Text>
+             <Text style={[styles.summaryMiniValue, { color: SUCCESS_COLOR }]}>
+                {formatDisplayCurrency(totalSaved)}
+             </Text>
+          </View>
+        </View>
+      </View>
 
-          return (
-            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <TouchableOpacity 
-                activeOpacity={0.7}
-                onPress={() => router.push({
-                  pathname: '/edit-goal',
-                  params: { 
-                    id: item.id,
-                    name: item.name,
-                    target_amount: item.target_amount,
-                    deadline: item.deadline
-                  }
-                })}
-              >
-                <View style={styles.cardHeader}>
-                  <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(23, 115, 207, 0.15)' : '#f0f9ff' }]}>
-                    <MaterialIcons name="savings" size={20} color={THEME_COLOR} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                      <Text style={[styles.cardTitle, { color: colors.text }]}>{item.name}</Text>
-                      <Text style={[styles.cardDate, { color: colors.textSub }]}>Meta: {new Date(item.deadline).toLocaleDateString('pt-BR')}</Text>
-                  </View>
-                  {isCompleted && (
-                    <View style={styles.completedBadge}>
-                        <MaterialIcons name="check" size={12} color="#FFF" />
-                        <Text style={styles.completedText}>Concluído</Text>
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.progressContainer}>
-                  <View style={styles.progressLabelRow}>
-                      <Text style={[styles.progressPercentage, { color: THEME_COLOR }]}>{progress.toFixed(0)}%</Text>
-                      <Text style={[styles.progressValues, { color: colors.textSub }]}>
-                          {formatCurrency(current)} / {formatCurrency(target)}
-                      </Text>
-                  </View>
-                  <View style={[styles.progressBarBg, { backgroundColor: isDark ? '#334155' : '#f1f5f9' }]}>
-                      <View style={[styles.progressBarFill, { width: `${progress}%`, backgroundColor: isCompleted ? SUCCESS_COLOR : THEME_COLOR }]} />
-                  </View>
-                </View>
-              </TouchableOpacity>
-
-              <View style={[styles.cardActions, { borderTopColor: colors.border }]}>
-                <TouchableOpacity 
-                    style={[styles.actionButtonOutline, { borderColor: isDark ? '#7f1d1d' : '#fee2e2' }]} 
-                    onPress={() => handleOpenAction(item, 'withdraw')}
-                >
-                    <MaterialIcons name="remove" size={16} color={DANGER_COLOR} />
-                    <Text style={[styles.actionText, { color: DANGER_COLOR }]}>Resgatar</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                    style={[styles.actionButtonFilled, { backgroundColor: THEME_COLOR }]} 
-                    onPress={() => handleOpenAction(item, 'deposit')}
-                >
-                    <MaterialIcons name="add" size={16} color="#FFF" />
-                    <Text style={styles.actionTextFilled}>Depositar</Text>
-                </TouchableOpacity>
-              </View>
+      <View style={styles.listWrapper}>
+        <FlashList<Goal>
+          data={goals}
+          keyExtractor={(item) => item.id}
+          // @ts-ignore
+          estimatedItemSize={160}
+          extraData={[hideValues, isDark]}
+          contentContainerStyle={styles.listContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={THEME_COLOR} />}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <MaterialIcons name="search-off" size={40} color={colors.textSub} />
+              <Text style={[styles.emptyText, { color: colors.textSub }]}>Nenhum objetivo definido.</Text>
             </View>
-          );
-        }}
-      />
+          }
+          renderItem={({ item }) => {
+            const current = Number(item.currentAmount || (item as any)._raw.current_amount || 0);
+            const target = Number(item.targetAmount || (item as any)._raw.target_amount || 0);
+            const progress = target > 0 ? Math.min((current / target) * 100, 100) : 0;
+            const isCompleted = progress >= 100;
+            const deadline = new Date(item.deadline || (item as any)._raw.deadline);
 
-      <ActionSheet 
-        visible={actionSheetVisible} 
-        context="goals" 
-        onClose={() => setActionSheetVisible(false)} 
-      />
+            return (
+              <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <TouchableOpacity 
+                  activeOpacity={0.7}
+                  onPress={() => router.push({ pathname: '/edit-goal', params: { id: item.id } })}
+                >
+                  <View style={styles.cardHeader}>
+                    <View style={[styles.iconBox, { backgroundColor: iconBgColor }]}>
+                      <MaterialIcons name="savings" size={20} color={THEME_COLOR} />
+                    </View>
+                    <View style={styles.cardTitleContainer}>
+                        <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
+                        <Text style={[styles.cardDate, { color: colors.textSub }]}>Meta: {deadline.toLocaleDateString('pt-BR')}</Text>
+                    </View>
+                    {isCompleted && (
+                      <View style={[styles.completedBadge, { backgroundColor: completedBadgeBg }]}>
+                          <Text style={[styles.completedText, { color: SUCCESS_COLOR }]}>Concluído</Text>
+                      </View>
+                    )}
+                  </View>
 
-      {/* MODAL DE DEPÓSITO/RESGATE PADRONIZADO */}
+                  <View style={styles.progressContainer}>
+                    <View style={styles.progressLabelRow}>
+                        <Text style={[styles.progressPercentage, { color: THEME_COLOR }]}>{progress.toFixed(0)}%</Text>
+                        <Text style={[styles.progressValues, { color: colors.textSub }]}>
+                            {formatDisplayCurrency(current)} / {formatDisplayCurrency(target)}
+                        </Text>
+                    </View>
+                    <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
+                        <View style={[styles.progressBarFill, { width: `${progress}%`, backgroundColor: isCompleted ? SUCCESS_COLOR : THEME_COLOR }]} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+
+                <View style={[styles.cardActions, { borderTopColor: colors.border }]}>
+                  <TouchableOpacity style={styles.actionButton} onPress={() => handleOpenAction(item, 'withdraw')}>
+                      <MaterialIcons name="remove-circle-outline" size={16} color={DANGER_COLOR} />
+                      <Text style={[styles.actionText, { color: DANGER_COLOR }]}>Resgatar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.actionButton, { backgroundColor: guardarBtnBg }]} onPress={() => handleOpenAction(item, 'deposit')}>
+                      <MaterialIcons name="add-circle-outline" size={16} color={THEME_COLOR} />
+                      <Text style={[styles.actionText, { color: THEME_COLOR }]}>Guardar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          }}
+        />
+      </View>
+
+      {/* Modal de Ação */}
       <Modal visible={actionModalVisible} transparent animationType="fade">
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
             <View style={[styles.modalContentSmall, { backgroundColor: colors.card }]}>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>
-                    {actionType === 'deposit' ? 'Guardar Dinheiro' : 'Resgatar Valor'}
+                  {actionType === 'deposit' ? 'Guardar Dinheiro' : 'Resgatar Valor'}
                 </Text>
-                <Text style={[styles.modalSubtitle, { color: colors.textSub }]}>
-                    {actionType === 'deposit' 
-                        ? `Quanto você quer guardar para "${selectedGoal?.name}"?` 
-                        : `Quanto você vai retirar de "${selectedGoal?.name}"?`}
-                </Text>
+                
+                <View style={[styles.infoBadge, { backgroundColor: infoBadgeBg }]}>
+                   <Text style={[styles.infoLabel, { color: colors.textSub }]}>
+                     {actionType === 'deposit' ? 'Falta para a meta: ' : 'Saldo atual no objetivo: '}
+                     <Text style={[styles.boldText, { color: colors.text }]}>
+                       {actionType === 'deposit' 
+                         ? (Number(selectedGoal?.targetAmount || 0) - Number(selectedGoal?.currentAmount || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                         : Number(selectedGoal?.currentAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                       }
+                     </Text>
+                   </Text>
+                </View>
 
-                <View style={[styles.amountWrapper, { backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderColor: colors.border, borderWidth: 1 }]}>
+                <View style={[styles.amountWrapper, { backgroundColor: amountWrapperBg, borderColor: colors.border }]}>
                     <Text style={[styles.currencySymbol, { color: colors.textSub }]}>R$</Text>
-                    <TextInput 
-                        style={[styles.amountInput, { color: colors.text }]}
-                        value={getFormattedAmountInput()}
-                        onChangeText={handleAmountChange}
-                        keyboardType="numeric"
-                        placeholder="0,00"
-                        placeholderTextColor={colors.textSub}
-                        autoFocus
-                    />
+                    <TextInput style={[styles.amountInput, { color: colors.text }]} value={getFormattedAmountInput()} onChangeText={handleAmountChange} keyboardType="numeric" autoFocus />
                 </View>
 
                 <View style={styles.modalButtonsRow}>
-                    <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: isDark ? '#334155' : '#f1f5f9' }]} onPress={() => setActionModalVisible(false)}>
-                        <Text style={[styles.cancelText, { color: colors.textSub }]}>Cancelar</Text>
+                    <TouchableOpacity style={styles.cancelBtn} onPress={() => setActionModalVisible(false)}>
+                      <Text style={[styles.boldText, { color: colors.textSub }]}>Cancelar</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity 
-                        style={[styles.confirmBtn, { backgroundColor: actionType === 'deposit' ? THEME_COLOR : DANGER_COLOR }]} 
-                        onPress={submitTransaction}
-                        disabled={submitting}
-                    >
-                        {submitting ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={styles.confirmText}>Confirmar</Text>}
+                    <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: actionType === 'deposit' ? THEME_COLOR : DANGER_COLOR }]} onPress={submitTransaction} disabled={submitting}>
+                        {submitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.confirmText}>Confirmar</Text>}
                     </TouchableOpacity>
                 </View>
             </View>
         </KeyboardAvoidingView>
       </Modal>
 
-      <WalletSelectorModal 
-        visible={selectorVisible} 
-        onClose={() => setSelectorVisible(false)} 
-        onSelect={(id) => updateUserSetting({ last_opened_wallet: id })} 
-        onAddPress={() => setCreateWalletVisible(true)}
-      />
-      <CreateWalletModal visible={createWalletVisible} onClose={() => setCreateWalletVisible(false)} onSuccess={fetchData} />
+      {/* ✅ Modais de WalletSelector e CreateWallet removidos (já estão no MainHeader) */}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  listContent: { padding: 16, paddingBottom: 100 },
-  
-  card: { borderRadius: 16, padding: 16, marginBottom: 12, elevation: 1, borderWidth: 1 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 },
-  iconBox: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  cardTitle: { fontSize: 16, fontWeight: '700' },
-  cardDate: { fontSize: 12 },
-  completedBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0bda5b', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, gap: 4 },
-  completedText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
-
-  progressContainer: { marginBottom: 16 },
+  headerSection: { paddingTop: 12, paddingBottom: 8 },
+  compactFilterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
+  headerInfoGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerLabel: { fontSize: 16, fontWeight: '800' },
+  compactSummary: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1 },
+  summaryLabel: { fontSize: 10, fontWeight: '700'},
+  summaryMiniValue: { fontSize: 12, fontWeight: '900' },
+  listWrapper: { flex: 1 },
+  listContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100 },
+  card: { borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
+  iconBox: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  cardTitleContainer: { flex: 1 },
+  cardTitle: { fontSize: 14, fontWeight: '700' },
+  cardDate: { fontSize: 11 },
+  completedBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  completedText: { fontSize: 10, fontWeight: 'bold' },
+  progressContainer: { marginBottom: 14 },
   progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  progressPercentage: { fontSize: 14, fontWeight: '800' },
-  progressValues: { fontSize: 12 },
+  progressPercentage: { fontSize: 14, fontWeight: '900' },
+  progressValues: { fontSize: 11 },
   progressBarBg: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressBarFill: { height: '100%', borderRadius: 4 },
-
   cardActions: { flexDirection: 'row', gap: 10, borderTopWidth: 1, paddingTop: 12 },
-  actionButtonOutline: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 8, borderRadius: 8, borderWidth: 1, gap: 6 },
-  actionButtonFilled: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 8, borderRadius: 8, gap: 6 },
-  actionText: { fontSize: 12, fontWeight: '700' },
-  actionTextFilled: { fontSize: 12, fontWeight: '700', color: '#FFF' },
-
-  emptyContainer: { alignItems: 'center', marginTop: 60, paddingHorizontal: 40 },
-  emptyText: { fontSize: 18, fontWeight: 'bold', marginTop: 16 },
-
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  modalContentSmall: { borderRadius: 24, padding: 24, width: '100%' },
-  modalTitle: { fontSize: 20, fontWeight: '800', textAlign: 'center' },
-  modalSubtitle: { fontSize: 14, marginTop: 4, textAlign: 'center', marginBottom: 10 },
-  amountWrapper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginVertical: 20, borderRadius: 16, padding: 10 },
-  currencySymbol: { fontSize: 20, fontWeight: 'bold', marginRight: 8 },
-  amountInput: { fontSize: 32, fontWeight: 'bold', minWidth: 100, textAlign: 'center' },
+  actionButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, borderRadius: 10, gap: 6 },
+  actionText: { fontSize: 12, fontWeight: '800' },
+  emptyContainer: { alignItems: 'center', marginTop: 80 },
+  emptyText: { marginTop: 12, fontSize: 13, fontWeight: '500' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 },
+  modalContentSmall: { borderRadius: 24, padding: 24 },
+  modalTitle: { fontSize: 18, fontWeight: '900', textAlign: 'center', marginBottom: 12 },
+  infoBadge: { padding: 10, borderRadius: 12, marginBottom: 20, alignItems: 'center' },
+  infoLabel: { fontSize: 12 },
+  boldText: { fontWeight: 'bold' },
+  amountWrapper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1, height: 56, marginBottom: 24 },
+  currencySymbol: { fontSize: 18, fontWeight: 'bold', marginRight: 6 },
+  amountInput: { fontSize: 22, fontWeight: '900', minWidth: 100, textAlign: 'center' },
   modalButtonsRow: { flexDirection: 'row', gap: 12 },
-  cancelBtn: { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center' },
-  confirmBtn: { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center' },
-  cancelText: { fontWeight: 'bold' },
-  confirmText: { fontWeight: 'bold', color: '#FFF' },
+  cancelBtn: { flex: 1, height: 48, justifyContent: 'center', alignItems: 'center' },
+  confirmBtn: { flex: 2, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  confirmText: { fontWeight: 'bold', color: '#FFF', fontSize: 14 },
 });

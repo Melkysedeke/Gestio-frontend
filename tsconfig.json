@@ -3,6 +3,10 @@
   "compilerOptions": {
     "strict": true,
     "skipLibCheck": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strictPropertyInitialization": false,
+    "useDefineForClassFields": false,
     "paths": {
       "@/*": [
         "./*"

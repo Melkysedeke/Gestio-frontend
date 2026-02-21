@@ -1,94 +1,167 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { API_BASE_URL } from '../src/config/apiConfig';
-import { useThemeColor } from '@/hooks/useThemeColor'; // Ajuste o path se necessário
+import { useThemeColor } from '@/hooks/useThemeColor';
+import { useAuthStore } from '../src/stores/authStore'; 
+
+// ✅ Importando os modais para dentro do Header
+import WalletSelectorModal from './WalletSelectorModal'
+import CreateWalletModal from './CreateWalletModal';
 
 interface MainHeaderProps {
-  user: any;
   activeWallet: any;
-  onPressSelector: () => void;
-  // onPressAdd removido
+  // ✅ Agora o Header só precisa avisar a tela pai: "Ei, a carteira mudou, recarregue os dados!"
+  onWalletChange: () => void; 
 }
 
-export default function MainHeader({ user, activeWallet, onPressSelector }: MainHeaderProps) {
+export default function MainHeader({ activeWallet, onWalletChange }: MainHeaderProps) {
   const { colors, isDark } = useThemeColor();
+  
+  const user = useAuthStore(state => state.user);
+  const hideValues = useAuthStore(state => state.hideValues);
+  const toggleHideValues = useAuthStore(state => state.toggleHideValues);
+  const updateUserSetting = useAuthStore(state => state.updateUserSetting);
 
-  const avatarUri = React.useMemo(() => {
-    const avatar = user?.avatar;
-    if (!avatar) return null;
-    if (avatar.startsWith('http')) return avatar;
-    return `${API_BASE_URL}/uploads/${avatar}`;
-  }, [user?.avatar]);
+  // ✅ Estados locais dos modais
+  const [selectorVisible, setSelectorVisible] = useState(false);
+  const [createWalletVisible, setCreateWalletVisible] = useState(false);
+
+  // ✅ Lógica inteligente de clique
+  const handlePressSelector = () => {
+    if (!activeWallet) {
+      setCreateWalletVisible(true); // Se não tem carteira, abre direto a criação
+    } else {
+      setSelectorVisible(true); // Se tem, abre a lista
+    }
+  };
+
+  const renderAvatar = () => {
+    if (user?.avatar && user.avatar !== 'default' && !user.avatar.includes('@local')) {
+      return (
+        <Image 
+          source={{ uri: user.avatar }} 
+          style={styles.profileImage}
+          resizeMode="cover"
+        />
+      );
+    }
+
+    if (user?.name) {
+      return (
+        <View style={[styles.avatarCircle, { backgroundColor: isDark ? '#334155' : '#e2e8f0' }]}>
+          <Text style={[styles.avatarInitial, { color: colors.primary }]}>
+            {user.name.charAt(0).toUpperCase()}
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={[styles.avatarCircle, { backgroundColor: colors.border }]}>
+        <MaterialIcons name="person" size={24} color={colors.textSub} />
+      </View>
+    );
+  };
 
   return (
-    <SafeAreaView 
-        style={[styles.safeHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]} 
-        edges={['top']}
-    >
-      <View style={styles.headerContent}>
-        
-        {/* ESQUERDA: Seletor de Carteira */}
-        <TouchableOpacity 
-          style={[styles.walletSelector, { backgroundColor: isDark ? colors.background : '#f8fafc', borderColor: colors.border }]} 
-          onPress={onPressSelector}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.walletIconBox, { backgroundColor: isDark ? 'rgba(56, 189, 248, 0.1)' : 'rgba(23, 115, 207, 0.08)' }]}>
-            <MaterialIcons name="account-balance-wallet" size={20} color={colors.primary} />
-          </View>
+    <>
+      <SafeAreaView 
+          style={[styles.safeHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]} 
+          edges={['top']}
+      >
+        <View style={styles.headerContent}>
           
-          <View style={styles.walletInfo}>
-            <Text style={[styles.walletLabel, { color: colors.textSub }]}>Carteira Atual</Text>
-            <View style={styles.walletNameRow}>
-              <Text style={[styles.walletActive, { color: colors.text }]} numberOfLines={1}>
-                {activeWallet?.name || 'Criar Carteira'}
-              </Text>
-              <MaterialIcons name="expand-more" size={16} color={colors.textSub} />
-            </View>
+          <View style={styles.leftContainer}>
+            <TouchableOpacity 
+              style={[
+                styles.walletSelector, 
+                { 
+                  backgroundColor: isDark ? colors.background : '#f8fafc', 
+                  borderColor: colors.border 
+                }
+              ]} 
+              onPress={handlePressSelector}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.walletIconBox, { backgroundColor: isDark ? 'rgba(56, 189, 248, 0.1)' : 'rgba(23, 115, 207, 0.08)' }]}>
+                <MaterialIcons name="account-balance-wallet" size={20} color={colors.primary} />
+              </View>
+              
+              <View style={styles.walletInfo}>
+                <Text style={[styles.walletLabel, { color: colors.textSub }]}>Carteira Atual</Text>
+                <View style={styles.walletNameRow}>
+                  <Text style={[styles.walletActive, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
+                    {activeWallet?.name || 'Criar Carteira'}
+                  </Text>
+                  <MaterialIcons name="expand-more" size={16} color={colors.textSub} />
+                </View>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              onPress={toggleHideValues} 
+              style={[styles.visibilityButton, { borderColor: colors.border, backgroundColor: isDark ? colors.background : '#f8fafc' }]}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons 
+                name={hideValues ? "visibility-off" : "visibility"} 
+                size={20} 
+                color={colors.textSub} 
+              />
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
 
-        {/* DIREITA: Botão de Perfil */}
-        <TouchableOpacity 
-          style={[styles.profileButton, { borderColor: colors.border, backgroundColor: isDark ? colors.background : '#f8fafc' }]} 
-          onPress={() => router.push('/settings')} 
-          activeOpacity={0.8}
-        >
-          {avatarUri ? (
-            <Image 
-              source={{ uri: avatarUri }} 
-              style={styles.profileImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
-              <Text style={[styles.avatarInitial, { color: colors.textSub }]}>
-                {user?.name?.charAt(0).toUpperCase() || 'U'}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity 
+            style={[
+              styles.profileButton, 
+              { 
+                borderColor: colors.border, 
+                backgroundColor: isDark ? colors.background : '#f8fafc' 
+              }
+            ]} 
+            onPress={() => router.push('/settings')} 
+            activeOpacity={0.8}
+          >
+            {renderAvatar()}
+          </TouchableOpacity>
 
-      </View>
-    </SafeAreaView>
+        </View>
+      </SafeAreaView>
+
+      {/* ✅ Modais Injetados Globalmente Aqui */}
+      <WalletSelectorModal 
+        visible={selectorVisible} 
+        onClose={() => setSelectorVisible(false)} 
+        onSelect={async (id) => { 
+          await updateUserSetting({ last_opened_wallet: id }); 
+          setSelectorVisible(false); 
+          onWalletChange(); // Avisa a tela (ex: Dashboard) para recarregar
+        }} 
+        onAddPress={() => {
+          setSelectorVisible(false);
+          setCreateWalletVisible(true);
+        }}
+      />
+
+      <CreateWalletModal 
+        visible={createWalletVisible} 
+        onClose={() => setCreateWalletVisible(false)} 
+        onSuccess={() => {
+          setCreateWalletVisible(false);
+          onWalletChange(); // Avisa a tela (ex: Dashboard) para recarregar
+        }} 
+      />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   safeHeader: {
     ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 3,
-      },
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 3 },
+      android: { elevation: 3 },
     }),
     borderBottomWidth: 1,
     zIndex: 100, 
@@ -99,65 +172,63 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    height: 64, 
+    height: 70, 
+  },
+  leftContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1, // ✅ Troque 'flex: 1' por 'flexShrink: 1'
+    paddingRight: 10,
   },
   walletSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderRadius: 14, 
-    paddingVertical: 4,
+    paddingVertical: 6,
     paddingHorizontal: 10,
     gap: 10,
-    maxWidth: '75%', 
+    flexShrink: 1, 
+    width: 150, // ✅ ADICIONADO: Força o botão a cortar o texto com "..." mais cedo
   },
-  walletIconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  walletInfo: {
-    flexShrink: 1,
-  },
-  walletLabel: {
-    fontSize: 9,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  walletNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2
-  },
-  walletActive: {
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  
-  profileButton: {
+  visibilityButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0, // ✅ ADICIONADO: Impede que o botão do olho seja esmagado ou deformado
+  },
+  walletIconBox: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  walletInfo: { flexShrink: 1 },
+  walletLabel: { fontSize: 8, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  walletNameRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 2,
+    flexShrink: 1 // ✅ ADICIONADO: Restaura a corrente de encolhimento para o texto cortar!
+  },
+  walletActive: { fontSize: 12, fontWeight: 'bold', flexShrink: 1 }, // ✅ flexShrink permite o "..."
+  profileButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 1,
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  profileImage: {
-    width: '100%',
-    height: '100%'
-  },
-  avatarPlaceholder: {
+  profileImage: { width: '100%', height: '100%' },
+  avatarCircle: {
     width: '100%',
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center'
   },
   avatarInitial: {
-    fontWeight: '800',
+    fontWeight: 'bold',
     fontSize: 18
   },
 });
