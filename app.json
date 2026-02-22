@@ -53,7 +53,9 @@
           "android": {
             "kotlinVersion": "2.0.21",
             "packagingOptions": {
-              "pickFirst": ["**/libc++_shared.so"]
+              "pickFirst": [
+                "**/libc++_shared.so"
+              ]
             }
           }
         }
@@ -62,6 +64,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8e74a08b-f04e-46e4-a42c-8b3a695b1d52"
+      }
     }
   }
 }

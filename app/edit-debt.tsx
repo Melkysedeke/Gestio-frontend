@@ -15,6 +15,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Q } from '@nozbe/watermelondb'
 
 // Banco de Dados e Models
 import { database } from '../src/database';
@@ -95,19 +96,45 @@ export default function EditDebtScreen() {
   }
 
   async function handleDelete() {
-    Alert.alert('Excluir', 'Tem certeza que deseja apagar este registro?', [
+    Alert.alert('Excluir', 'Tem certeza que deseja apagar esta dívida? As transações vinculadas serão mantidas, mas perderão o vínculo.', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Excluir', style: 'destructive', onPress: async () => {
-        try {
-          const debtRecord = await database.get('debts').find(id as string);
-          await database.write(async () => {
-            await debtRecord.markAsDeleted();
-          });
-          router.back();
-        } catch {
-          Alert.alert('Erro', 'Falha ao excluir.');
+      { 
+        text: 'Excluir', 
+        style: 'destructive', 
+        onPress: async () => {
+          try {
+            const debtRecord = await database.get('debts').find(id as string);
+            
+            await database.write(async () => {
+              // 1. Buscar transações que apontam para esta dívida
+              const linkedTransactions = await database
+                .get('transactions')
+                .query(Q.where('debt_id', debtRecord.id))
+                .fetch();
+
+              // 2. Limpar o vínculo em cada transação (tornar o ID nulo)
+              // Isso evita que a transação dê erro ao ser deletada ou editada depois
+              for (const trans of linkedTransactions) {
+                await trans.update((t: any) => {
+                  t._raw.debt_id = null; 
+                });
+              }
+
+              // 3. Deletar a dívida permanentemente do SQLite
+              await debtRecord.destroyPermanently();
+            });
+
+            // Alerta de sucesso antes de voltar (opcional, mas recomendado)
+            Alert.alert('Sucesso', 'Dívida excluída!', [
+              { text: 'OK', onPress: () => router.back() }
+            ]);
+            
+          } catch (error) {
+            console.error("Erro ao excluir dívida:", error);
+            Alert.alert('Erro', 'Não foi possível excluir a dívida.');
+          }
         }
-      }}
+      }
     ]);
   }
 
