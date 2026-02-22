@@ -12,12 +12,14 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router'; // ✅ Importado o router
 import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
 export default function WelcomeScreen() {
   const [name, setName] = useState('');
   const { colors, isDark } = useThemeColor();
+  const router = useRouter(); // ✅ Inicializado o router
 
   const signInAsGuest = useAuthStore((state) => state.signInAsGuest);
   const isLoading = useAuthStore((state) => state.isLoading);
@@ -28,8 +30,8 @@ export default function WelcomeScreen() {
     }
   };
 
-  // ✅ Estilo do botão calculado para evitar sujeira no JSX
   const buttonOpacity = !name.trim() ? 0.6 : 1;
+  const secondaryBtnBg = isDark ? '#1e293b' : '#f1f5f9';
 
   return (
     <KeyboardAvoidingView 
@@ -55,8 +57,9 @@ export default function WelcomeScreen() {
           </Text>
         </View>
         
+        {/* FLUXO DE CONVIDADO */}
         <View style={styles.inputWrapper}>
-          <Text style={[styles.label, { color: colors.textSub }]}>COMO PODEMOS TE CHAMAR?</Text>
+          <Text style={[styles.label, { color: colors.textSub }]}>ENTRAR COMO CONVIDADO</Text>
           <View style={[styles.inputBox, { 
             backgroundColor: colors.card, 
             borderColor: colors.border,
@@ -65,7 +68,7 @@ export default function WelcomeScreen() {
             <MaterialIcons name="person-outline" size={20} color={colors.textSub} style={styles.inputIcon} />
             <TextInput 
               style={[styles.input, { color: colors.text }]} 
-              placeholder="Ex: Gestio"
+              placeholder="Como podemos te chamar?"
               placeholderTextColor={colors.textSub}
               value={name}
               onChangeText={setName}
@@ -87,21 +90,43 @@ export default function WelcomeScreen() {
             <ActivityIndicator color="#fff" />
           ) : (
             <View style={styles.buttonContent}>
-              <Text style={styles.buttonText}>Começar agora</Text>
+              <Text style={styles.buttonText}>Começar offline</Text>
               <MaterialIcons name="arrow-forward" size={20} color="#FFF" />
             </View>
           )}
         </TouchableOpacity>
 
-        <Text style={[styles.footerText, { color: colors.textSub }]}>
-          Dados armazenados apenas no seu dispositivo.
-        </Text>
+        {/* DIVISOR */}
+        <View style={styles.dividerContainer}>
+          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          <Text style={[styles.dividerText, { color: colors.textSub }]}>OU</Text>
+          <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+        </View>
+
+        {/* FLUXO ONLINE (SUPABASE) */}
+        <View style={styles.authButtonsContainer}>
+          <TouchableOpacity 
+            style={[styles.secondaryButton, { backgroundColor: secondaryBtnBg }]} 
+            onPress={() => router.push('/register')}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="cloud-upload" size={18} color={colors.primary} />
+            <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Criar Conta Oficial</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.outlineButton, { borderColor: colors.border }]} 
+            onPress={() => router.push('/login')}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.outlineButtonText, { color: colors.textSub }]}>Já tenho uma conta</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-// ✅ Estilos Otimizados: Removido tudo que é estrutural do Inline
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -128,7 +153,7 @@ const styles = StyleSheet.create({
     paddingTop: 40,
   },
   textGroup: {
-    marginBottom: 40,
+    marginBottom: 30,
   },
   title: {
     fontSize: 28,
@@ -144,13 +169,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   inputWrapper: {
-    marginBottom: 30,
+    marginBottom: 20,
   },
   label: {
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 1,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   inputBox: {
     flexDirection: 'row',
@@ -188,10 +213,45 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: 'bold',
   },
-  footerText: {
-    textAlign: 'center',
-    marginTop: 24,
+  // ✅ Novos estilos para o divisor e botões de Auth
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    marginHorizontal: 12,
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: 'bold',
+  },
+  authButtonsContainer: {
+    gap: 12,
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    height: 50,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  secondaryButtonText: {
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  outlineButton: {
+    height: 50,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  outlineButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

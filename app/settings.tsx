@@ -9,7 +9,7 @@ import {
   Switch,
   Alert,
   StatusBar,
-  ActivityIndicator, // ✅ Importado para mostrar loading na foto
+  ActivityIndicator, 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -30,7 +30,6 @@ export default function SettingsScreen() {
   const isGuest = user?.email?.includes('@local');
   const { colors, isDark } = useThemeColor();
 
-  // ✅ Estado de loading para a foto
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   const handleThemeSwitch = (value: boolean) => {
@@ -39,9 +38,14 @@ export default function SettingsScreen() {
 
   const handleEditPhoto = async () => {
     if (isGuest) {
+      // ✅ Bônus: Atalho direto para o registro se tentar mudar a foto
       Alert.alert(
         "Recurso Indisponível", 
-        "Registre uma conta para personalizar sua foto."
+        "Registre uma conta para personalizar sua foto e salvar na nuvem.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Criar Conta", onPress: () => router.push('/register') }
+        ]
       );
       return;
     }
@@ -187,7 +191,7 @@ export default function SettingsScreen() {
           {isGuest && (
             <TouchableOpacity 
               style={[styles.registerButton, { backgroundColor: colors.primary }]}
-              onPress={() => Alert.alert("Registro", "Em breve você poderá converter sua conta local em oficial!")}
+              onPress={() => router.push('/register')} // ✅ Redirecionando direto para o registro!
             >
               <MaterialIcons name="person-add" size={18} color="#FFF" />
               <Text style={styles.registerButtonText}>Criar Conta Oficial</Text>
