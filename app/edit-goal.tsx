@@ -99,7 +99,7 @@ export default function EditGoalScreen() {
   async function handleDelete() {
     Alert.alert(
       'Excluir Objetivo',
-      'Tem certeza? O saldo acumulado neste objetivo será devolvido para sua carteira atual.',
+      'Tem certeza? O saldo acumulado será devolvido para a carteira e as transações antigas perderão o vínculo com este objetivo.',
       [
         { text: 'Cancelar', style: 'cancel' },
         { 
@@ -111,9 +111,10 @@ export default function EditGoalScreen() {
             try {
               await database.write(async () => {
                 const currentAmount = Number(goalRecord.currentAmount || (goalRecord as any)._raw.current_amount || 0);
+                const walletId = (goalRecord as any)._raw.wallet_id;
                 
+                // 1. Lógica de Estorno (Mantida e perfeita!)
                 if (currentAmount > 0) {
-                  const walletId = (goalRecord as any)._raw.wallet_id;
                   const wallet = await database.get<Wallet>('wallets').find(walletId);
                   
                   await wallet.update((w: any) => {
@@ -127,13 +128,29 @@ export default function EditGoalScreen() {
                     t.categoryName = 'Estornos';
                     t.categoryIcon = 'settings-backup-restore';
                     t._raw.wallet_id = walletId;
-                    t.transactionDate = Date.now();
+                    t.transactionDate = new Date(); // ✅ Usando new Date() para garantir compatibilidade com o Model
                   });
                 }
-                await goalRecord.markAsDeleted();
+
+                // 2. 🚀 A CORREÇÃO: Desvincular as transações antigas deste objetivo
+                const linkedTransactions = await database
+                  .get('transactions')
+                  .query(Q.where('goal_id', goalRecord.id))
+                  .fetch();
+
+                for (const trans of linkedTransactions) {
+                  await trans.update((t: any) => {
+                    t._raw.goal_id = null; // Tira a âncora
+                  });
+                }
+
+                // 3. 🚀 A CORREÇÃO: Deletar permanentemente em vez de apenas marcar
+                await goalRecord.destroyPermanently();
               });
+              
               router.back();
-            } catch {
+            } catch (error) {
+              console.error("Erro ao excluir objetivo:", error);
               Alert.alert('Erro', 'Falha ao excluir o objetivo.');
             } finally {
               setSaving(false);
