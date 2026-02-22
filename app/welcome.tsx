@@ -108,7 +108,7 @@ export default function WelcomeScreen() {
         <View style={styles.authButtonsContainer}>
           <TouchableOpacity 
             style={[styles.secondaryButton, { backgroundColor: secondaryBtnBg }]}
-            onPress={() => Alert.alert("Em desenvolvimento")}
+            onPress={() => Alert.alert("Em desenvolvimento","Aguarde para registrar sua conta e assegurar suas informações!")}
             // onPress={() => router.push('/register')}
             activeOpacity={0.7}
           >
@@ -118,7 +118,7 @@ export default function WelcomeScreen() {
 
           <TouchableOpacity 
             style={[styles.outlineButton, { borderColor: colors.border }]}
-            onPress={() => Alert.alert("Em desenvolvimento")} 
+            onPress={() => Alert.alert("Em desenvolvimento","Aguarde para acessar sua conta e recuperar suas informações!")} 
             // onPress={() => router.push('/login')}
             activeOpacity={0.7}
           >
