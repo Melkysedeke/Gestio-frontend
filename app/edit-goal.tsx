@@ -6,6 +6,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Q } from '@nozbe/watermelondb'
 
 // Banco de Dados e Models
 import { database } from '../src/database';
