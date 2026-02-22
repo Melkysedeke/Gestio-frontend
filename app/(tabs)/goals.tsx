@@ -20,7 +20,6 @@ import Wallet from '../../src/database/models/Wallet';
 import MainHeader from '../../components/MainHeader';
 
 export default function GoalsScreen() {
-  // ✅ Removido o updateUserSetting (o MainHeader cuida da carteira agora)
   const { user } = useAuthStore();
   const hideValues = useAuthStore(state => state.hideValues);
   
@@ -29,8 +28,6 @@ export default function GoalsScreen() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-
-  // ✅ Removido o estado createWalletVisible
 
   const [actionModalVisible, setActionModalVisible] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
@@ -146,7 +143,6 @@ export default function GoalsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       
-      {/* ✅ MainHeader atualizado para sincronizar com o estado global da carteira */}
       <MainHeader 
         activeWallet={activeWallet}
         onWalletChange={fetchData} 
@@ -187,6 +183,9 @@ export default function GoalsScreen() {
             const target = Number(item.targetAmount || (item as any)._raw.target_amount || 0);
             const progress = target > 0 ? Math.min((current / target) * 100, 100) : 0;
             const isCompleted = progress >= 100;
+            
+            // ✅ Resgatando e formatando as datas
+            const createdAt = new Date(item.createdAt || (item as any)._raw.created_at || Date.now());
             const deadline = new Date(item.deadline || (item as any)._raw.deadline);
 
             return (
@@ -201,7 +200,22 @@ export default function GoalsScreen() {
                     </View>
                     <View style={styles.cardTitleContainer}>
                         <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
-                        <Text style={[styles.cardDate, { color: colors.textSub }]}>Meta: {deadline.toLocaleDateString('pt-BR')}</Text>
+                        
+                        {/* ✅ Coluna de Datas Empilhadas */}
+                        <View style={styles.datesColumn}>
+                          <View style={styles.dateRow}>
+                            <MaterialIcons name="calendar-today" size={10} color={colors.textSub} />
+                            <Text style={[styles.cardDate, { color: colors.textSub }]}>
+                              Criado em: {createdAt.toLocaleDateString('pt-BR')}
+                            </Text>
+                          </View>
+                          <View style={styles.dateRow}>
+                            <MaterialIcons name="flag" size={10} color={THEME_COLOR} />
+                            <Text style={[styles.cardDate, { color: colors.textSub }]}>
+                              Meta para: {deadline.toLocaleDateString('pt-BR')}
+                            </Text>
+                          </View>
+                        </View>
                     </View>
                     {isCompleted && (
                       <View style={[styles.completedBadge, { backgroundColor: completedBadgeBg }]}>
@@ -239,7 +253,6 @@ export default function GoalsScreen() {
         />
       </View>
 
-      {/* Modal de Ação */}
       <Modal visible={actionModalVisible} transparent animationType="fade">
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
             <View style={[styles.modalContentSmall, { backgroundColor: colors.card }]}>
@@ -275,8 +288,6 @@ export default function GoalsScreen() {
             </View>
         </KeyboardAvoidingView>
       </Modal>
-
-      {/* ✅ Modais de WalletSelector e CreateWallet removidos (já estão no MainHeader) */}
     </View>
   );
 }
@@ -293,11 +304,13 @@ const styles = StyleSheet.create({
   listWrapper: { flex: 1 },
   listContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100 },
   card: { borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
-  iconBox: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14, gap: 10 }, // Alterado para flex-start para melhor alinhamento
+  iconBox: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   cardTitleContainer: { flex: 1 },
   cardTitle: { fontSize: 14, fontWeight: '700' },
-  cardDate: { fontSize: 11 },
+  datesColumn: { gap: 2, marginTop: 4 }, // ✅ Estilo da coluna de datas
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 4 }, // ✅ Alinhamento ícone e texto
+  cardDate: { fontSize: 10 },
   completedBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   completedText: { fontSize: 10, fontWeight: 'bold' },
   progressContainer: { marginBottom: 14 },

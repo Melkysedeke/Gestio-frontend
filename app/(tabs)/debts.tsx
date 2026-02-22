@@ -28,7 +28,6 @@ import Debt from '../../src/database/models/Debt';
 import MainHeader from "../../components/MainHeader";
 
 export default function DebtsScreen() {
-  // ✅ updateUserSetting removido, o MainHeader lida com a troca de carteiras
   const { user } = useAuthStore();
   const hideValues = useAuthStore(state => state.hideValues); 
   const { colors, isDark } = useThemeColor();
@@ -36,15 +35,12 @@ export default function DebtsScreen() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [activeTab, setActiveTab] = useState<"payable" | "receivable">("payable");
-  
-  // ✅ createModalVisible removido
 
   const [depositModalVisible, setDepositModalVisible] = useState(false);
   const [selectedDebt, setSelectedDebt] = useState<Debt | null>(null);
   const [amountRaw, setAmountRaw] = useState(""); 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Constantes de cores resolvidas fora do render cíclico
   const PAYABLE_COLOR = colors.danger;
   const RECEIVABLE_COLOR = colors.success;
   const ACTIVE_TAB_COLOR = activeTab === "payable" ? PAYABLE_COLOR : RECEIVABLE_COLOR;
@@ -152,7 +148,6 @@ export default function DebtsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       
-      {/* ✅ MainHeader agora recebe o onWalletChange */}
       <MainHeader 
         activeWallet={activeWallet}
         onWalletChange={fetchData} 
@@ -211,6 +206,9 @@ export default function DebtsScreen() {
             const pending = total - paid;
             const progress = total > 0 ? Math.min(paid / total, 1) : 0;
             const isFinished = item.isPaid || (item as any)._raw.is_paid;
+            
+            // ✅ Resgatando a data de criação e formatação
+            const createdAt = new Date(item.createdAt || (item as any)._raw.created_at || Date.now());
             const dueDate = new Date(item.dueDate || (item as any)._raw.due_date);
             const isOverdue = !isFinished && dueDate < new Date(new Date().setHours(0, 0, 0, 0));
 
@@ -246,11 +244,20 @@ export default function DebtsScreen() {
                 </View>
 
                 <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
-                  <View style={styles.dateRow}>
-                    <MaterialIcons name="event" size={12} color={dateColor} />
-                    <Text style={[styles.dateText, { color: dateColor }]}>
-                      {isOverdue ? "Atrasado" : "Vence"}: {dueDate.toLocaleDateString("pt-BR")}
-                    </Text>
+                  {/* ✅ Nova coluna de datas empilhadas */}
+                  <View style={styles.datesColumn}>
+                    <View style={styles.dateRow}>
+                      <MaterialIcons name="calendar-today" size={11} color={colors.textSub} />
+                      <Text style={[styles.dateText, { color: colors.textSub }]}>
+                        Criado: {createdAt.toLocaleDateString("pt-BR")}
+                      </Text>
+                    </View>
+                    <View style={styles.dateRow}>
+                      <MaterialIcons name="event" size={12} color={dateColor} />
+                      <Text style={[styles.dateText, { color: dateColor }]}>
+                        {isOverdue ? "Atrasado" : "Vence"}: {dueDate.toLocaleDateString("pt-BR")}
+                      </Text>
+                    </View>
                   </View>
 
                   {isFinished ? (
@@ -302,8 +309,6 @@ export default function DebtsScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
-      {/* ✅ Modais de WalletSelector e CreateWallet removidos (já estão no MainHeader) */}
     </View>
   );
 }
@@ -333,6 +338,7 @@ const styles = StyleSheet.create({
   progressFill: { height: "100%", borderRadius: 3 },
   progressText: { fontSize: 10, fontWeight: "bold", width: 30 },
   cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTopWidth: 1 },
+  datesColumn: { gap: 4, justifyContent: 'center' }, // ✅ Estilo adicionado para empilhar as datas
   dateRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   dateText: { fontSize: 11, fontWeight: '600' },
   paidBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
