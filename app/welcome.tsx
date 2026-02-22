@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { 
+  Alert,
   View, 
   Text, 
   TextInput, 
@@ -106,8 +107,9 @@ export default function WelcomeScreen() {
         {/* FLUXO ONLINE (SUPABASE) */}
         <View style={styles.authButtonsContainer}>
           <TouchableOpacity 
-            style={[styles.secondaryButton, { backgroundColor: secondaryBtnBg }]} 
-            onPress={() => router.push('/register')}
+            style={[styles.secondaryButton, { backgroundColor: secondaryBtnBg }]}
+            onPress={() => Alert.alert("Em desenvolvimento")}
+            // onPress={() => router.push('/register')}
             activeOpacity={0.7}
           >
             <MaterialIcons name="cloud-upload" size={18} color={colors.primary} />
@@ -115,8 +117,9 @@ export default function WelcomeScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.outlineButton, { borderColor: colors.border }]} 
-            onPress={() => router.push('/login')}
+            style={[styles.outlineButton, { borderColor: colors.border }]}
+            onPress={() => Alert.alert("Em desenvolvimento")} 
+            // onPress={() => router.push('/login')}
             activeOpacity={0.7}
           >
             <Text style={[styles.outlineButtonText, { color: colors.textSub }]}>Já tenho uma conta</Text>

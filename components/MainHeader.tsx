@@ -4,7 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { useAuthStore } from '../src/stores/authStore'; 
+import { useAuthStore } from '../src/stores/authStore';
+import { API_BASE_URL } from '../src/config/apiConfig';
 
 // ✅ Importando os modais para dentro do Header
 import WalletSelectorModal from './WalletSelectorModal'
@@ -38,16 +39,23 @@ export default function MainHeader({ activeWallet, onWalletChange }: MainHeaderP
   };
 
   const renderAvatar = () => {
+    // 1. Verifica se existe avatar e se não é o padrão local
     if (user?.avatar && user.avatar !== 'default' && !user.avatar.includes('@local')) {
+      // 🚀 MONTA A URL IGUAL AO SETTINGS
+      const avatarUri = user.avatar.startsWith('http') || user.avatar.startsWith('data:image')
+        ? user.avatar 
+        : `${API_BASE_URL}/uploads/${user.avatar}`;
+
       return (
         <Image 
-          source={{ uri: user.avatar }} 
+          source={{ uri: avatarUri }} 
           style={styles.profileImage}
           resizeMode="cover"
         />
       );
     }
 
+    // 2. Fallback para a inicial se tiver nome
     if (user?.name) {
       return (
         <View style={[styles.avatarCircle, { backgroundColor: isDark ? '#334155' : '#e2e8f0' }]}>
@@ -58,6 +66,7 @@ export default function MainHeader({ activeWallet, onWalletChange }: MainHeaderP
       );
     }
 
+    // 3. Fallback final (ícone genérico)
     return (
       <View style={[styles.avatarCircle, { backgroundColor: colors.border }]}>
         <MaterialIcons name="person" size={24} color={colors.textSub} />
