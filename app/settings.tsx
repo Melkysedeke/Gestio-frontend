@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   View, 
   Text, 
@@ -9,6 +9,7 @@ import {
   Switch,
   Alert,
   StatusBar,
+  ActivityIndicator, // ✅ Importado para mostrar loading na foto
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -22,11 +23,15 @@ import { useThemeStore } from '../src/stores/themeStore';
 
 export default function SettingsScreen() {
   const user = useAuthStore((state) => state.user);
+  const updateUserSetting = useAuthStore((state) => state.updateUserSetting);
   const signOut = useAuthStore((state) => state.signOut);
   const setTheme = useThemeStore((state) => state.setTheme);
   
   const isGuest = user?.email?.includes('@local');
   const { colors, isDark } = useThemeColor();
+
+  // ✅ Estado de loading para a foto
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   const handleThemeSwitch = (value: boolean) => {
     setTheme(value ? 'dark' : 'light');
@@ -34,23 +39,32 @@ export default function SettingsScreen() {
 
   const handleEditPhoto = async () => {
     if (isGuest) {
-        Alert.alert(
-            "Recurso Indisponível", 
-            "No modo convidado, os dados são locais. Crie uma conta oficial para personalizar sua foto na nuvem."
-        );
-        return;
+      Alert.alert(
+        "Recurso Indisponível", 
+        "Registre uma conta para personalizar sua foto."
+      );
+      return;
     }
-    
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.3,
-      base64: true, 
-    });
 
-    if (!result.canceled && result.assets[0].base64) {
-      Alert.alert("Sucesso", "Foto enviada! (Lógica de upload pendente)");
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.3,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0].base64) {
+        setIsUploadingPhoto(true);
+        const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+        await updateUserSetting({ avatar: base64Image });
+      }
+    } catch (error) {
+      console.error("Erro ao alterar foto:", error);
+      Alert.alert("Erro", "Não foi possível alterar a foto de perfil.");
+    } finally {
+      setIsUploadingPhoto(false);
     }
   };
 
@@ -64,7 +78,6 @@ export default function SettingsScreen() {
     ]);
   };
 
-  // ✅ Sub-componente otimizado com StyleSheet
   const MenuItem = ({ icon, label, isDestructive = false, onPress, showArrow = true }: any) => {
     const iconBoxBg = isDestructive 
       ? styles.menuIconBoxDestructive.backgroundColor 
@@ -92,10 +105,9 @@ export default function SettingsScreen() {
 
   const renderAvatar = () => {
     if (user?.avatar && user.avatar !== 'default' && !user.avatar.includes('@local')) {
-      const avatarUri = user.avatar.startsWith('http') 
+      const avatarUri = user.avatar.startsWith('http') || user.avatar.startsWith('data:image')
         ? user.avatar 
         : `${API_BASE_URL}/uploads/${user.avatar}`;
-
       return (
         <Image 
           source={{ uri: avatarUri }} 
@@ -144,11 +156,18 @@ export default function SettingsScreen() {
         <View style={styles.userSection}>
           <View style={styles.avatarContainer}>
             <View style={[styles.avatarWrapper, { borderColor: colors.card }]}>
-              {renderAvatar()}
+              {isUploadingPhoto ? (
+                <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              ) : (
+                renderAvatar()
+              )}
             </View>
             <TouchableOpacity 
               style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.background }]} 
               onPress={handleEditPhoto}
+              disabled={isUploadingPhoto}
             >
               <MaterialIcons name="photo-camera" size={16} color="#FFF" />
             </TouchableOpacity>
