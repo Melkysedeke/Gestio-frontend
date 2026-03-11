@@ -8,7 +8,7 @@ export async function seedCategories() {
   if (count > 0) return
 
   const defaultCategories = [
-    // Despesas
+    // 🔴 Despesas (Cores Quentes/Vibrantes)
     { name: 'Alimentação', icon: 'restaurant', type: 'expense', color: '#ef4444' },
     { name: 'Transporte', icon: 'directions-bus', type: 'expense', color: '#3b82f6' },
     { name: 'Casa', icon: 'home', type: 'expense', color: '#f59e0b' },
@@ -17,16 +17,20 @@ export async function seedCategories() {
     { name: 'Lazer', icon: 'movie', type: 'expense', color: '#8b5cf6' },
     { name: 'Educação', icon: 'school', type: 'expense', color: '#6366f1' },
     { name: 'Outros', icon: 'more-horiz', type: 'expense', color: '#64748b' },
-    // Receitas
+    
+    // 🟢 Receitas (Cores Verdes/Frias)
     { name: 'Salário', icon: 'attach-money', type: 'income', color: '#22c55e' },
     { name: 'Freelance', icon: 'computer', type: 'income', color: '#06b6d4' },
     { name: 'Investimento', icon: 'trending-up', type: 'income', color: '#8b5cf6' },
     { name: 'Presente', icon: 'card-giftcard', type: 'income', color: '#f43f5e' },
-    // Dívidas
+    
+    // 🟠 Dívidas (Cores de Alerta)
     { name: 'Dívida', icon: 'receipt-long', type: 'debts', color: '#fa6238' },
     { name: 'Empréstimo', icon: 'handshake', type: 'debts', color: '#1773cf' },
-    // Investimento
-    { name: 'Objetivo', icon: 'savings', type: 'goals', color: '#0bda5b' },
+    
+    // 🔵 Investimento/Objetivos (Para a lógica de Goals/Depósitos)
+    { name: 'Depósito', icon: 'add-circle-outline', type: 'goals', color: '#0bda5b' },
+    { name: 'Resgate', icon: 'remove-circle-outline', type: 'goals', color: '#f59e0b' },
   ]
 
   await database.write(async () => {
@@ -42,4 +46,3 @@ export async function seedCategories() {
     await database.batch(...batch)
   })
 }
-

@@ -121,7 +121,7 @@ export default function EditDebtScreen() {
               }
 
               // 3. Deletar a dívida permanentemente do SQLite
-              await debtRecord.destroyPermanently();
+              await debtRecord.markAsDeleted();
             });
 
             // Alerta de sucesso antes de voltar (opcional, mas recomendado)

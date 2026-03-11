@@ -191,8 +191,8 @@ export default function SettingsScreen() {
           {isGuest && (
             <TouchableOpacity 
               style={[styles.registerButton, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/register')} // ✅ Redirecionando direto para o registro!
-            >
+              onPress={() => router.push('/register')}
+              >
               <MaterialIcons name="person-add" size={18} color="#FFF" />
               <Text style={styles.registerButtonText}>Criar Conta Oficial</Text>
             </TouchableOpacity>

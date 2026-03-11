@@ -238,6 +238,7 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 // Importações originais
 import { useAuthStore } from '../src/stores/authStore';
 import { authService } from '../src/services/authService';
+// import { syncData } from '../src/services/SyncService';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -255,16 +256,10 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      // 1. Bate na sua API Node.js local
       const { user, token } = await authService.login({ email, password });
-
-      // 2. Salva no WatermelonDB
       await signIn(user, token);
-
-      // 3. Redireciona para o App
-      router.replace('/(tabs)');
-
     } catch (error: any) {
+      console.error("❌ Erro no Acesso:", error.message);
       Alert.alert("Erro no Acesso", error.message);
     } finally {
       setLoading(false); 

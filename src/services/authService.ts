@@ -1,8 +1,9 @@
 import { API_BASE_URL } from '../config/apiConfig';
+import User from '../database/models/User';
 import api from './api'; // Importe o Axios aqui
 
 interface RegisterResponse {
-  user: any;
+  user: User;
   token: string;
 }
 
@@ -17,18 +18,16 @@ export const authService = {
    */
   async register(formData: FormData): Promise<RegisterResponse> {
      try {
-      console.log(`📡 Enviando registro para: ${API_BASE_URL}/users/signup`);
       const response = await fetch(`${API_BASE_URL}/users/signup`, {
         method: 'POST',
         body: formData,
         headers: { 'Accept': 'application/json' },
       });
       const textResponse = await response.text();
-      console.log('📄 Resposta bruta do servidor:', textResponse);
       let json;
       try { 
         json = JSON.parse(textResponse); 
-      } catch (e) { 
+      } catch { 
         console.error('❌ Falha ao transformar em JSON. O servidor mandou isso:', textResponse);
         throw new Error('Erro na resposta do servidor. Verifique o console do Backend.'); 
       }

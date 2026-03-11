@@ -18,6 +18,7 @@ import { Q } from '@nozbe/watermelondb';
 import { database } from '../../src/database';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { syncData } from '../../src/services/SyncService';
 import Wallet from '../../src/database/models/Wallet';
 import Transaction from '../../src/database/models/Transaction';
 
@@ -27,7 +28,7 @@ import MainHeader from '../../components/MainHeader';
 import MonthSelector from '../../components/MonthSelector'; 
 
 export default function DashboardScreen() {
-  const { user, setHasWallets } = useAuthStore();
+  const { user, setHasWallets, lastSyncTime } = useAuthStore();
   const hideValues = useAuthStore(state => state.hideValues);
   
   const { colors, isDark } = useThemeColor();
@@ -43,6 +44,17 @@ export default function DashboardScreen() {
 
   const lastOpenedWalletId = user?.settings?.last_opened_wallet;
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await syncData();          // 1. Sincroniza e grava no banco
+      await fetchDashboardData(); // 2. Lê os novos dados do banco e coloca no estado do React
+    } catch {
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const formatDisplayCurrency = (value: number) => {
     if (hideValues) return "R$ •••••"; 
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -54,16 +66,18 @@ export default function DashboardScreen() {
   };
 
   const fetchDashboardData = useCallback(async () => {
-    // 🚀 O SEGREDO: Pegamos o estado direto da Store em tempo real para evitar "Stale Closures"
     const freshUser = useAuthStore.getState().user;
     if (!freshUser?.id) return;
 
     try {
-      const allWallets = await database.get<Wallet>('wallets').query().fetch();
+      // Busca todas as carteiras não deletadas
+      const allWallets = await database.get<Wallet>('wallets').query(
+        Q.where('deleted_at', Q.eq(null)) 
+      ).fetch();
+      
       setWallets(allWallets);
       setHasWallets(allWallets.length > 0);
 
-      // Usamos o ID fresquinho ou o primeiro da lista
       const activeId = freshUser.settings?.last_opened_wallet || allWallets[0]?.id;
       const activeWallet = allWallets.find(w => w.id === activeId) || allWallets[0];
 
@@ -71,17 +85,21 @@ export default function DashboardScreen() {
         const startOfMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1).getTime();
         const endOfMonth = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0, 23, 59, 59).getTime();
 
+        // Transações do Mês
         const monthTrans = await database.get<Transaction>('transactions')
           .query(
             Q.where('wallet_id', activeWallet.id),
             Q.where('transaction_date', Q.gte(startOfMonth)),
-            Q.where('transaction_date', Q.lte(endOfMonth))
+            Q.where('transaction_date', Q.lte(endOfMonth)),
+            Q.where('deleted_at', Q.eq(null))
           )
           .fetch();
 
+        // Recentes
         const recentTrans = await database.get<Transaction>('transactions')
           .query(
             Q.where('wallet_id', activeWallet.id),
+            Q.where('deleted_at', Q.eq(null)),
             Q.sortBy('transaction_date', Q.desc),
             Q.take(5)
           )
@@ -105,19 +123,20 @@ export default function DashboardScreen() {
       console.error('Erro dashboard:', error);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  }, [selectedMonth, setHasWallets]); // Dependências reduzidas para evitar recreações excessivas
+  }, [selectedMonth, setHasWallets]); // Recria a função sempre que o mês muda
 
-  // ✅ Atualiza quando focado
-  useFocusEffect(useCallback(() => { 
-    fetchDashboardData(); 
-  }, [fetchDashboardData]));
+  // 🚀 O ÚNICO GATILHO NECESSÁRIO
+  // Dispara quando a tela ganha foco ou quando a dependência (selectedMonth) muda
+  useFocusEffect(
+    useCallback(() => { 
+      fetchDashboardData();
+    }, [fetchDashboardData])
+  );
 
-  // ✅ Atualização INSTANTÂNEA quando a carteira for trocada no menu ou o mês for alterado
   useEffect(() => {
-    fetchDashboardData();
-  }, [lastOpenedWalletId, selectedMonth, fetchDashboardData]);
+  fetchDashboardData();
+}, [lastSyncTime, fetchDashboardData]);
 
   const activeWallet = useMemo(() => {
       return wallets.find(w => w.id === lastOpenedWalletId) || wallets[0];
@@ -153,8 +172,9 @@ export default function DashboardScreen() {
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
-            onRefresh={() => { setRefreshing(true); fetchDashboardData(); }} 
+            onRefresh={onRefresh} 
             tintColor={colors.primary} 
+            colors={[colors.primary]}
           />
         }
       >

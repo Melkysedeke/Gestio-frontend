@@ -1,22 +1,21 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb'
 
 export const mySchema = appSchema({
-  version: 2,
+  version: 3, // 🚀 Incrementei a versão para forçar atualização se necessário
   tables: [
-    // 1. USERS
     tableSchema({
       name: 'users',
       columns: [
         { name: 'name', type: 'string' },
         { name: 'email', type: 'string' },
-        { name: 'password', type: 'string', isOptional: true }, // Cuidado com segurança aqui
+        { name: 'password', type: 'string', isOptional: true },
         { name: 'avatar', type: 'string', isOptional: true },
-        { name: 'settings', type: 'string', isOptional: true }, // Vamos salvar o JSON como string
+        { name: 'settings', type: 'string', isOptional: true },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
+        { name: 'deleted_at', type: 'number', isOptional: true }, // 🚀 Adicionado
       ],
     }),
-    // 2. WALLETS
     tableSchema({
       name: 'wallets',
       columns: [
@@ -27,23 +26,23 @@ export const mySchema = appSchema({
         { name: 'archived', type: 'boolean' },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
+        { name: 'deleted_at', type: 'number', isOptional: true }, // 🚀 Adicionado
       ],
     }),
-    // 3. CATEGORIES
     tableSchema({
       name: 'categories',
       columns: [
-        { name: 'user_id', type: 'string', isOptional: true, isIndexed: true }, // Nullable para globais
+        { name: 'user_id', type: 'string', isOptional: true, isIndexed: true },
         { name: 'name', type: 'string' },
         { name: 'icon', type: 'string' },
-        { name: 'type', type: 'string' }, // 'income', 'expense', etc
+        { name: 'type', type: 'string' },
         { name: 'color', type: 'string' },
         { name: 'archived', type: 'boolean' },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
+        { name: 'deleted_at', type: 'number', isOptional: true }, // 🚀 Adicionado
       ],
     }),
-    // 4. DEBTS
     tableSchema({
       name: 'debts',
       columns: [
@@ -53,14 +52,14 @@ export const mySchema = appSchema({
         { name: 'entity_name', type: 'string', isOptional: true },
         { name: 'amount', type: 'number' },
         { name: 'total_paid', type: 'number' },
-        { name: 'due_date', type: 'number' }, // Data como timestamp
+        { name: 'due_date', type: 'number' },
         { name: 'is_paid', type: 'boolean' },
         { name: 'paid_at', type: 'number', isOptional: true },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
+        { name: 'deleted_at', type: 'number', isOptional: true }, // 🚀 Adicionado
       ],
     }),
-    // 5. GOALS
     tableSchema({
       name: 'goals',
       columns: [
@@ -73,9 +72,9 @@ export const mySchema = appSchema({
         { name: 'is_completed', type: 'boolean' },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
+        { name: 'deleted_at', type: 'number', isOptional: true }, // 🚀 Adicionado
       ],
     }),
-    // 6. TRANSACTIONS
     tableSchema({
       name: 'transactions',
       columns: [
@@ -92,6 +91,7 @@ export const mySchema = appSchema({
         { name: 'category_icon', type: 'string' },
         { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
+        { name: 'deleted_at', type: 'number', isOptional: true }, // 🚀 Adicionado
       ],
     }),
   ],

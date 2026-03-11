@@ -146,7 +146,7 @@ export default function EditGoalScreen() {
                 }
 
                 // 3. 🚀 A CORREÇÃO: Deletar permanentemente em vez de apenas marcar
-                await goalRecord.destroyPermanently();
+                await goalRecord.markAsDeleted();
               });
               
               router.back();
