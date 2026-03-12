@@ -30,32 +30,18 @@ export default function WelcomeScreen() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isGuestLoading, setIsGuestLoading] = useState(false);
 
-  useEffect(() => {
-    GoogleSignin.configure({
-      webClientId: 'COLOQUE_AQUI_SEU_WEB_CLIENT_ID_DO_GOOGLE_CLOUD.apps.googleusercontent.com', 
-      offlineAccess: true,
-    });
-  }, []);
-
   const handleGoogleLogin = async () => {
     try {
       setIsGoogleLoading(true);
       await GoogleSignin.hasPlayServices();
-      
       const userInfo = await GoogleSignin.signIn();
-      
       if (userInfo.type === 'cancelled') {
          return; 
       }
-
       const idToken = userInfo.type === 'success' ? userInfo.data?.idToken : null;
-
       if (!idToken) throw new Error("Falha ao obter o token do Google");
-
       const response = await api.post('/users/auth/google', { idToken });
-
       await signIn(response.data.user, response.data.token);
-
       router.replace('/(tabs)');
     } catch (error: any) {
       console.error("Erro no Google Login:", error);

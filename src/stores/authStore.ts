@@ -4,7 +4,13 @@ import { database } from '../database';
 import { Q } from '@nozbe/watermelondb'; 
 import User from '../database/models/User'; 
 import { seedCategories } from '../database/seeds'; 
-import { useThemeStore } from './themeStore'; 
+import { useThemeStore } from './themeStore';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+
+GoogleSignin.configure({
+  webClientId: 'SEU_ID_DA_WEB_AQUI.apps.googleusercontent.com', // ⚠️ O ID tipo WEB!
+  offlineAccess: true,
+});
 
 interface AuthState {
   user: User | null;
