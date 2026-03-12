@@ -10,6 +10,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { database } from '../src/database';
 import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { syncData } from '../src/services/SyncService';
 
 export default function AddGoalScreen() {
   const user = useAuthStore(state => state.user);
@@ -67,7 +68,7 @@ export default function AddGoalScreen() {
           g._raw.wallet_id = walletId; 
         });
       });
-
+      syncData().catch(err => console.log("Sync em background falhou:", err));
       router.back();
     } catch (error: any) {
       console.error("Erro ao criar objetivo:", error);

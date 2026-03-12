@@ -44,16 +44,11 @@ export default function DashboardScreen() {
 
   const lastOpenedWalletId = user?.settings?.last_opened_wallet;
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await syncData();          // 1. Sincroniza e grava no banco
-      await fetchDashboardData(); // 2. Lê os novos dados do banco e coloca no estado do React
-    } catch {
-    } finally {
-      setRefreshing(false);
-    }
-  };
+  useFocusEffect(
+    useCallback(() => {
+      syncData().then(() => fetchDashboardData());
+    }, [])
+  );
 
   const formatDisplayCurrency = (value: number) => {
     if (hideValues) return "R$ •••••"; 
@@ -171,8 +166,7 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={onRefresh} 
+            refreshing={refreshing}
             tintColor={colors.primary} 
             colors={[colors.primary]}
           />

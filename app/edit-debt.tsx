@@ -20,6 +20,7 @@ import { Q } from '@nozbe/watermelondb'
 // Banco de Dados e Models
 import { database } from '../src/database';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { syncData } from '../src/services/SyncService';
 
 export default function EditDebtScreen() {
   const { id } = useLocalSearchParams();
@@ -87,6 +88,7 @@ export default function EditDebtScreen() {
           d.dueDate = date;
         });
       });
+      syncData().catch(err => console.log("Sync em background falhou:", err));
       router.back();
     } catch {
       Alert.alert('Erro', 'Falha ao atualizar registro local.');

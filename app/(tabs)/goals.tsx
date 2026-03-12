@@ -13,6 +13,7 @@ import { FlashList } from '@shopify/flash-list';
 import { database } from '../../src/database';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { syncData } from '../../src/services/SyncService';
 import Goal from '../../src/database/models/Goal';
 import Wallet from '../../src/database/models/Wallet';
 
@@ -46,6 +47,13 @@ export default function GoalsScreen() {
   const guardarBtnBg = isDark ? 'rgba(56, 189, 248, 0.1)' : '#f0f9ff';
   const infoBadgeBg = isDark ? '#1e293b' : '#f1f5f9';
   const amountWrapperBg = isDark ? '#1e293b' : '#f8fafc';
+
+  useFocusEffect(
+    useCallback(() => {
+      // Sincroniza sempre que entrar na tela de início
+      syncData().then(() => fetchData());
+    }, [])
+  );
 
   const formatDisplayCurrency = (val: number) => {
     if (hideValues) return "R$ •••••";

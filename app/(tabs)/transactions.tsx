@@ -7,6 +7,7 @@ import { Q } from '@nozbe/watermelondb';
 import { database } from '../../src/database';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { syncData } from '../../src/services/SyncService';
 import Transaction from '../../src/database/models/Transaction';
 import Wallet from '../../src/database/models/Wallet';
 
@@ -37,7 +38,13 @@ export default function TransactionsScreen() {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  // ✅ Função unificada de busca de dados
+  useFocusEffect(
+    useCallback(() => {
+      // Sincroniza sempre que entrar na tela de início
+      syncData().then(() => fetchData());
+    }, [])
+  );
+
   const fetchData = useCallback(async () => {
     if (!user?.id) return;
     try {

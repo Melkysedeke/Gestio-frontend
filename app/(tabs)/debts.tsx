@@ -21,6 +21,7 @@ import { FlashList } from "@shopify/flash-list";
 import { database } from "../../src/database";
 import { useAuthStore } from "../../src/stores/authStore";
 import { useThemeColor } from "@/hooks/useThemeColor"; 
+import { syncData } from '../../src/services/SyncService';
 import Wallet from '../../src/database/models/Wallet';
 import Debt from '../../src/database/models/Debt';
 
@@ -48,6 +49,13 @@ export default function DebtsScreen() {
   const paidBadgeBg = isDark ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4';
   const infoBadgeBg = isDark ? '#1e293b' : '#f1f5f9';
   const inputWrapperBg = isDark ? '#1e293b' : '#f8fafc';
+
+    useFocusEffect(
+      useCallback(() => {
+        // Sincroniza sempre que entrar na tela de início
+        syncData().then(() => fetchData());
+      }, [])
+    );
 
   const formatDisplayCurrency = (value: number) => {
     if (hideValues) return "R$ •••••";

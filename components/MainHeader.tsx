@@ -1,19 +1,17 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useAuthStore } from '../src/stores/authStore';
-import { API_BASE_URL } from '../src/config/apiConfig';
 
-// ✅ Importando os modais para dentro do Header
-import WalletSelectorModal from './WalletSelectorModal'
+import WalletSelectorModal from './WalletSelectorModal';
 import CreateWalletModal from './CreateWalletModal';
+import UserAvatar from './UserAvatar'; 
 
 interface MainHeaderProps {
   activeWallet: any;
-  // ✅ Agora o Header só precisa avisar a tela pai: "Ei, a carteira mudou, recarregue os dados!"
   onWalletChange: () => void; 
 }
 
@@ -25,53 +23,15 @@ export default function MainHeader({ activeWallet, onWalletChange }: MainHeaderP
   const toggleHideValues = useAuthStore(state => state.toggleHideValues);
   const updateUserSetting = useAuthStore(state => state.updateUserSetting);
 
-  // ✅ Estados locais dos modais
   const [selectorVisible, setSelectorVisible] = useState(false);
   const [createWalletVisible, setCreateWalletVisible] = useState(false);
 
-  // ✅ Lógica inteligente de clique
   const handlePressSelector = () => {
     if (!activeWallet) {
-      setCreateWalletVisible(true); // Se não tem carteira, abre direto a criação
+      setCreateWalletVisible(true);
     } else {
-      setSelectorVisible(true); // Se tem, abre a lista
+      setSelectorVisible(true); 
     }
-  };
-
-  const renderAvatar = () => {
-    // 1. Verifica se existe avatar e se não é o padrão local
-    if (user?.avatar && user.avatar !== 'default' && !user.avatar.includes('@local')) {
-      // 🚀 MONTA A URL IGUAL AO SETTINGS
-      const avatarUri = user.avatar.startsWith('http') || user.avatar.startsWith('data:image')
-        ? user.avatar 
-        : `${API_BASE_URL}/uploads/${user.avatar}`;
-
-      return (
-        <Image 
-          source={{ uri: avatarUri }} 
-          style={styles.profileImage}
-          resizeMode="cover"
-        />
-      );
-    }
-
-    // 2. Fallback para a inicial se tiver nome
-    if (user?.name) {
-      return (
-        <View style={[styles.avatarCircle, { backgroundColor: isDark ? '#334155' : '#e2e8f0' }]}>
-          <Text style={[styles.avatarInitial, { color: colors.primary }]}>
-            {user.name.charAt(0).toUpperCase()}
-          </Text>
-        </View>
-      );
-    }
-
-    // 3. Fallback final (ícone genérico)
-    return (
-      <View style={[styles.avatarCircle, { backgroundColor: colors.border }]}>
-        <MaterialIcons name="person" size={24} color={colors.textSub} />
-      </View>
-    );
   };
 
   return (
@@ -109,17 +69,25 @@ export default function MainHeader({ activeWallet, onWalletChange }: MainHeaderP
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              onPress={toggleHideValues} 
-              style={[styles.visibilityButton, { borderColor: colors.border, backgroundColor: isDark ? colors.background : '#f8fafc' }]}
-              activeOpacity={0.7}
-            >
-              <MaterialIcons 
-                name={hideValues ? "visibility-off" : "visibility"} 
-                size={20} 
-                color={colors.textSub} 
-              />
-            </TouchableOpacity>
+            {activeWallet && (
+              <TouchableOpacity 
+                onPress={toggleHideValues} 
+                style={[
+                  styles.visibilityButton, 
+                  { 
+                    borderColor: colors.border, 
+                    backgroundColor: isDark ? colors.background : '#f8fafc' 
+                  }
+                ]}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons 
+                  name={hideValues ? "visibility-off" : "visibility"} 
+                  size={20} 
+                  color={colors.textSub} 
+                />
+              </TouchableOpacity>
+            )}
           </View>
 
           <TouchableOpacity 
@@ -133,20 +101,19 @@ export default function MainHeader({ activeWallet, onWalletChange }: MainHeaderP
             onPress={() => router.push('/settings')} 
             activeOpacity={0.8}
           >
-            {renderAvatar()}
+            <UserAvatar user={user} size={46} />
           </TouchableOpacity>
 
         </View>
       </SafeAreaView>
 
-      {/* ✅ Modais Injetados Globalmente Aqui */}
       <WalletSelectorModal 
         visible={selectorVisible} 
         onClose={() => setSelectorVisible(false)} 
         onSelect={async (id) => { 
           await updateUserSetting({ last_opened_wallet: id }); 
           setSelectorVisible(false); 
-          onWalletChange(); // Avisa a tela (ex: Dashboard) para recarregar
+          onWalletChange(); 
         }} 
         onAddPress={() => {
           setSelectorVisible(false);
@@ -159,7 +126,7 @@ export default function MainHeader({ activeWallet, onWalletChange }: MainHeaderP
         onClose={() => setCreateWalletVisible(false)} 
         onSuccess={() => {
           setCreateWalletVisible(false);
-          onWalletChange(); // Avisa a tela (ex: Dashboard) para recarregar
+          onWalletChange(); 
         }} 
       />
     </>
@@ -187,7 +154,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    flexShrink: 1, // ✅ Troque 'flex: 1' por 'flexShrink: 1'
+    flexShrink: 1,
     paddingRight: 10,
   },
   walletSelector: {
@@ -199,7 +166,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     gap: 10,
     flexShrink: 1, 
-    width: 150, // ✅ ADICIONADO: Força o botão a cortar o texto com "..." mais cedo
+    width: 150, 
   },
   visibilityButton: {
     width: 44,
@@ -208,7 +175,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0, // ✅ ADICIONADO: Impede que o botão do olho seja esmagado ou deformado
+    flexShrink: 0, 
   },
   walletIconBox: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   walletInfo: { flexShrink: 1 },
@@ -217,9 +184,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center', 
     gap: 2,
-    flexShrink: 1 // ✅ ADICIONADO: Restaura a corrente de encolhimento para o texto cortar!
+    flexShrink: 1 
   },
-  walletActive: { fontSize: 12, fontWeight: 'bold', flexShrink: 1 }, // ✅ flexShrink permite o "..."
+  walletActive: { fontSize: 12, fontWeight: 'bold', flexShrink: 1 },
   profileButton: {
     width: 46,
     height: 46,
@@ -228,16 +195,5 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  profileImage: { width: '100%', height: '100%' },
-  avatarCircle: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  avatarInitial: {
-    fontWeight: 'bold',
-    fontSize: 18
   },
 });

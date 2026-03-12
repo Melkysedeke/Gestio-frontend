@@ -10,6 +10,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { database } from '../src/database';
 import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { syncData } from '../src/services/SyncService';
 
 export default function AddDebtScreen() {
   const params = useLocalSearchParams();
@@ -74,7 +75,7 @@ export default function AddDebtScreen() {
           d.dueDate = date;
         });
       });
-
+      syncData().catch(err => console.log("Sync em background falhou:", err));
       router.back();
     } catch (error: any) {
       console.error(error);

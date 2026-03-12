@@ -10,8 +10,8 @@ import { Q } from '@nozbe/watermelondb'
 
 // Banco de Dados e Models
 import { database } from '../src/database';
-import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor'; 
+import { syncData } from '../src/services/SyncService';
 import Goal from '../src/database/models/Goal';
 import Wallet from '../src/database/models/Wallet';
 
@@ -89,6 +89,7 @@ export default function EditGoalScreen() {
           g.deadline = date;
         });
       });
+      syncData().catch(err => console.log("Sync em background falhou:", err));
       router.back();
     } catch {
       Alert.alert('Erro', 'Não foi possível atualizar o objetivo.');

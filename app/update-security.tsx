@@ -15,6 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import api from '../src/services/api';
 
 export default function SecurityScreen() {
   const { user, purgeDatabase } = useAuthStore();
@@ -52,16 +53,25 @@ export default function SecurityScreen() {
 
   function handleDeleteAccount() {
     Alert.alert(
-      '⚠️ EXCLUIR DADOS',
-      'Esta ação apagará todas as suas carteiras e transações locais permanentemente.',
+      '⚠️ EXCLUIR CONTA',
+      'Esta ação removerá permanentemente todos os seus dados do servidor e deste dispositivo.',
       [
         { text: 'Cancelar', style: 'cancel' },
         { 
           text: 'Sim, excluir tudo', 
           style: 'destructive',
           onPress: async () => {
-            await purgeDatabase(); 
-            router.replace('/welcome');
+            setLoading(true);
+            try {
+              await api.delete('/users/delete'); 
+              await purgeDatabase(); 
+              router.replace('/welcome');
+            } catch (error) {
+              console.error(error);
+              Alert.alert('Erro', 'Não foi possível excluir os dados no servidor. Verifique sua conexão.');
+            } finally {
+              setLoading(false);
+            }
           }
         }
       ]

@@ -3,7 +3,6 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  Image, 
   TouchableOpacity,
   ScrollView, 
   Switch,
@@ -16,10 +15,11 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router'; 
 import * as ImagePicker from 'expo-image-picker';
 
-import { API_BASE_URL } from '../src/config/apiConfig'; 
 import { useAuthStore } from '../src/stores/authStore'; 
 import { useThemeColor } from '@/hooks/useThemeColor'; 
 import { useThemeStore } from '../src/stores/themeStore';   
+
+import UserAvatar from '../components/UserAvatar'; 
 
 export default function SettingsScreen() {
   const user = useAuthStore((state) => state.user);
@@ -38,7 +38,6 @@ export default function SettingsScreen() {
 
   const handleEditPhoto = async () => {
     if (isGuest) {
-      // ✅ Bônus: Atalho direto para o registro se tentar mudar a foto
       Alert.alert(
         "Recurso Indisponível", 
         "Registre uma conta para personalizar sua foto e salvar na nuvem.",
@@ -107,37 +106,6 @@ export default function SettingsScreen() {
     );
   };
 
-  const renderAvatar = () => {
-    if (user?.avatar && user.avatar !== 'default' && !user.avatar.includes('@local')) {
-      const avatarUri = user.avatar.startsWith('http') || user.avatar.startsWith('data:image')
-        ? user.avatar 
-        : `${API_BASE_URL}/uploads/${user.avatar}`;
-      return (
-        <Image 
-          source={{ uri: avatarUri }} 
-          style={styles.avatarImage} 
-          resizeMode="cover"
-        />
-      );
-    }
-
-    if (user?.name) {
-      return (
-        <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? '#334155' : '#e2e8f0' }]}>
-          <Text style={[styles.avatarInitial, { color: colors.primary }]}>
-            {user.name.charAt(0).toUpperCase()}
-          </Text>
-        </View>
-      );
-    }
-
-    return (
-      <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
-        <MaterialIcons name="person" size={40} color={colors.textSub} />
-      </View>
-    );
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
@@ -161,11 +129,13 @@ export default function SettingsScreen() {
           <View style={styles.avatarContainer}>
             <View style={[styles.avatarWrapper, { borderColor: colors.card }]}>
               {isUploadingPhoto ? (
+                // Indicador de carregamento enquanto faz o upload
                 <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
                   <ActivityIndicator size="small" color={colors.primary} />
                 </View>
               ) : (
-                renderAvatar()
+                // 🚀 Uso do componente genérico de Avatar!
+                <UserAvatar user={user} size={100} />
               )}
             </View>
             <TouchableOpacity 
@@ -257,6 +227,7 @@ export default function SettingsScreen() {
   );
 }
 
+// Estilos limpos: apagamos as regras de imagem que agora vivem no UserAvatar.tsx
 const styles = StyleSheet.create({
   container: { flex: 1 },
   headerContainer: { borderBottomWidth: 1 },
@@ -284,9 +255,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2, 
     shadowRadius: 4,
   },
-  avatarImage: { width: '100%', height: '100%' },
   avatarPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-  avatarInitial: { fontSize: 40, fontWeight: 'bold' },
   editBadge: { 
     position: 'absolute', 
     bottom: 0, 
