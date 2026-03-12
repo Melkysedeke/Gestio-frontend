@@ -12,6 +12,13 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 
 import AnimatedSplashScreen from '../components/SplashScreen'; 
 import { syncData } from '../src/services/SyncService';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+
+GoogleSignin.configure({
+  webClientId: '851200563468-g76lrcpv0dds5gd1ql47b5qju7jtpmf9.apps.googleusercontent.com',
+  offlineAccess: true,
+});
+
 
 SplashScreenNative.preventAutoHideAsync();
 
