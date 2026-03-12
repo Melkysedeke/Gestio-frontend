@@ -43,7 +43,7 @@ export default function SettingsScreen() {
         "Registre uma conta para personalizar sua foto e salvar na nuvem.",
         [
           { text: "Cancelar", style: "cancel" },
-          { text: "Criar Conta", onPress: () => router.push('/register') }
+          { text: "Criar Conta", onPress: () => router.push('/Register') }
         ]
       );
       return;
@@ -76,7 +76,7 @@ export default function SettingsScreen() {
       { text: "Cancelar", style: "cancel" },
       { text: "Sair", style: "destructive", onPress: async () => {
           await signOut();
-          router.replace('/welcome');
+          router.replace('/Welcome');
       }}
     ]);
   };
@@ -161,7 +161,7 @@ export default function SettingsScreen() {
           {isGuest && (
             <TouchableOpacity 
               style={[styles.registerButton, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/register')}
+              onPress={() => router.push('/Register')}
               >
               <MaterialIcons name="person-add" size={18} color="#FFF" />
               <Text style={styles.registerButtonText}>Criar Conta Oficial</Text>
@@ -172,16 +172,16 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSub }]}>Geral</Text>
           <View style={[styles.card, { backgroundColor: colors.card }]}>
-            <MenuItem icon="person-outline" label="Dados Pessoais" onPress={() => router.push('/update-profile')} />
+            <MenuItem icon="person-outline" label="Dados Pessoais" onPress={() => router.push('/UpdateProfile')} />
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <MenuItem icon="account-balance-wallet" label="Minhas Carteiras" onPress={() => router.push('/my-wallets')} />
+            <MenuItem icon="account-balance-wallet" label="Minhas Carteiras" onPress={() => router.push('/MyWallets')} />
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSub }]}>Preferências</Text>
           <View style={[styles.card, { backgroundColor: colors.card }]}>
-            <MenuItem icon="notifications-none" label="Notificações" onPress={() => router.push('/update-notifications')} />
+            <MenuItem icon="notifications-none" label="Notificações" onPress={() => router.push('/UpdateNotifications')} />
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             
             <View style={styles.menuItem}>
@@ -202,9 +202,9 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSub }]}>Outros</Text>
           <View style={[styles.card, { backgroundColor: colors.card }]}>
-            <MenuItem icon="lock-outline" label="Segurança e Senha" onPress={() => router.push('/update-security')} />
+            <MenuItem icon="lock-outline" label="Segurança e Senha" onPress={() => router.push('/UpdateSecurity')} />
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <MenuItem icon="help-outline" label="Ajuda e Suporte" onPress={() => router.push('/help')} />
+            <MenuItem icon="help-outline" label="Ajuda e Suporte" onPress={() => router.push('/Help')} />
             
             {!isGuest && (
               <>

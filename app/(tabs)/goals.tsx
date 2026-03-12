@@ -200,7 +200,7 @@ export default function GoalsScreen() {
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <TouchableOpacity 
                   activeOpacity={0.7}
-                  onPress={() => router.push({ pathname: '/edit-goal', params: { id: item.id } })}
+                  onPress={() => router.push({ pathname: '/EditGoal', params: { id: item.id } })}
                 >
                   <View style={styles.cardHeader}>
                     <View style={[styles.iconBox, { backgroundColor: iconBgColor }]}>

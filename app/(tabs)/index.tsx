@@ -225,7 +225,7 @@ export default function DashboardScreen() {
 
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Atividade Recente</Text>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/transactions')}>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/Transactions')}>
                 <Text style={[styles.seeAllText, { color: colors.primary }]}>Ver tudo</Text>
               </TouchableOpacity>
             </View>
@@ -249,7 +249,7 @@ export default function DashboardScreen() {
                         key={item.id} 
                         activeOpacity={0.7}
                         onPress={() => router.push({
-                          pathname: '/edit-transaction',
+                          pathname: '/EditTransaction',
                           params: { id: item.id }
                         })}
                         style={[styles.transactionItem, { backgroundColor: colors.card, borderColor: colors.border }]}

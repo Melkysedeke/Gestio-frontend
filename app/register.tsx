@@ -168,7 +168,7 @@ export default function RegisterScreen() {
 
             <Animated.View entering={FadeInDown.delay(700).duration(800)} style={styles.footer}>
               <Text style={styles.footerText}>Já tem uma conta? </Text>
-              <TouchableOpacity onPress={() => router.push('/login')}>
+              <TouchableOpacity onPress={() => router.push('/Login')}>
                 <Text style={styles.loginLinkText}>Acessar</Text>
               </TouchableOpacity>
             </Animated.View>

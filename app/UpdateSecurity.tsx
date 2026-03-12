@@ -65,7 +65,7 @@ export default function SecurityScreen() {
             try {
               await api.delete('/users/delete'); 
               await purgeDatabase(); 
-              router.replace('/welcome');
+              router.replace('/Welcome');
             } catch (error) {
               console.error(error);
               Alert.alert('Erro', 'Não foi possível excluir os dados no servidor. Verifique sua conexão.');

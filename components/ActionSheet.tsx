@@ -52,7 +52,7 @@ export default function ActionSheet({ visible, context, onClose }: Props) {
     <>
       <TouchableOpacity 
         style={[styles.squareButton, buttonStyle]} 
-        onPress={() => handleNavigate('/add-transaction?type=expense')}
+        onPress={() => handleNavigate('/AddTransaction?type=expense')}
       >
         <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(250, 98, 56, 0.15)' : '#fef2f2' }]}>
           <MaterialIcons name="money-off" size={28} color="#fa6238" />
@@ -62,7 +62,7 @@ export default function ActionSheet({ visible, context, onClose }: Props) {
 
       <TouchableOpacity 
         style={[styles.squareButton, buttonStyle]} 
-        onPress={() => handleNavigate('/add-transaction?type=income')}
+        onPress={() => handleNavigate('/AddTransaction?type=income')}
       >
         <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(11, 218, 91, 0.15)' : '#ecfdf5' }]}>
           <MaterialIcons name="attach-money" size={28} color="#0bda5b" />
@@ -76,7 +76,7 @@ export default function ActionSheet({ visible, context, onClose }: Props) {
     <>
       <TouchableOpacity 
         style={[styles.squareButton, buttonStyle]} 
-        onPress={() => handleNavigate('/add-debt?type=debt')}
+        onPress={() => handleNavigate('/AddDebt?type=debt')}
       >
         <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(234, 88, 12, 0.15)' : '#fff7ed' }]}>
           <MaterialIcons name="remove-circle-outline" size={28} color="#ea580c" />
@@ -86,7 +86,7 @@ export default function ActionSheet({ visible, context, onClose }: Props) {
 
       <TouchableOpacity 
         style={[styles.squareButton, buttonStyle]} 
-        onPress={() => handleNavigate('/add-debt?type=loan')}
+        onPress={() => handleNavigate('/AddDebt?type=loan')}
       >
         <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(23, 115, 207, 0.15)' : '#eff6ff' }]}>
           <MaterialIcons name="add-circle-outline" size={28} color="#1773cf" />
@@ -99,7 +99,7 @@ export default function ActionSheet({ visible, context, onClose }: Props) {
   const GoalButton = () => (
     <TouchableOpacity 
         style={[styles.fullWidthButton, buttonStyle]} 
-        onPress={() => handleNavigate('/add-goal')} 
+        onPress={() => handleNavigate('/AddGoal')} 
     >
         <View style={[styles.iconBoxSmall, { backgroundColor: isDark ? 'rgba(217, 70, 239, 0.15)' : '#fdf4ff' }]}>
             <MaterialIcons name="flag" size={24} color="#d946ef" />

@@ -163,7 +163,7 @@ export default function TransactionsScreen() {
           return (
             <TouchableOpacity
               style={[styles.transactionItem, { backgroundColor: colors.card }]}
-              onPress={() => router.push({ pathname: '/edit-transaction', params: { id: item.id } })}
+              onPress={() => router.push({ pathname: '/EditTransaction', params: { id: item.id } })}
               activeOpacity={0.7}
             >
               <View style={styles.itemLeft}>

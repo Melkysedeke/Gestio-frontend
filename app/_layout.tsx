@@ -74,7 +74,7 @@ export default function RootLayout() {
           router.replace('/(tabs)');
         }
       } else {
-        router.replace('/welcome'); 
+        router.replace('/Welcome'); 
       }
     }
   }, [appIsReady, fontsLoaded, _hasHydrated, splashAnimationFinished, user, isSyncingInitial]);
@@ -100,9 +100,9 @@ export default function RootLayout() {
         {/* 🚀 O STACK FICA SEMPRE MONTADO para o router não se perder nas rotas */}
         <Stack screenOptions={{ freezeOnBlur: false, headerShown: false, animation: 'fade' }}>
           <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="welcome" /> 
-          <Stack.Screen name="login" />
-          <Stack.Screen name="register" />
+          <Stack.Screen name="Welcome" /> 
+          <Stack.Screen name="Login" />
+          <Stack.Screen name="Register" />
           <Stack.Screen name="index" />
         </Stack>
 

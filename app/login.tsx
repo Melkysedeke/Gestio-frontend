@@ -107,7 +107,7 @@ export default function LoginScreen() {
             <Animated.View entering={FadeInDown.delay(600).duration(1000).springify()}>
               <View style={styles.footer}>
                 <Text style={styles.footerText}>Não tem conta? </Text>
-                <TouchableOpacity onPress={() => router.push('/register')}>
+                <TouchableOpacity onPress={() => router.push('/Register')}>
                   <Text style={styles.registerText}>Registre-se agora</Text>
                 </TouchableOpacity>
               </View>

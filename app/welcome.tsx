@@ -109,7 +109,7 @@ export default function WelcomeScreen() {
           <TouchableOpacity 
             style={[styles.secondaryButton, { backgroundColor: secondaryBtnBg }]}
             // onPress={() => Alert.alert("Em desenvolvimento","Aguarde para registrar sua conta e assegurar suas informações!")}
-            onPress={() => router.push('/register')}
+            onPress={() => router.push('/Register')}
             activeOpacity={0.7}
           >
             <MaterialIcons name="cloud-upload" size={18} color={colors.primary} />
@@ -119,7 +119,7 @@ export default function WelcomeScreen() {
           <TouchableOpacity 
             style={[styles.outlineButton, { borderColor: colors.border }]}
             // onPress={() => Alert.alert("Em desenvolvimento","Aguarde para acessar sua conta e recuperar suas informações!")} 
-            onPress={() => router.push('/login')}
+            onPress={() => router.push('/Login')}
             activeOpacity={0.7}
           >
             <Text style={[styles.outlineButtonText, { color: colors.textSub }]}>Já tenho uma conta</Text>

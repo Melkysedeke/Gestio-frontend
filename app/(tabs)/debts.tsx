@@ -226,7 +226,7 @@ export default function DebtsScreen() {
             return (
               <TouchableOpacity
                 activeOpacity={0.8}
-                onPress={() => router.push({ pathname: "/edit-debt", params: { id: item.id } })}
+                onPress={() => router.push({ pathname: "/EditDebt", params: { id: item.id } })}
                 style={[styles.card, { backgroundColor: colors.card, borderColor: cardBorderColor }]}
               >
                 <View style={styles.cardHeader}>

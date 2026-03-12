@@ -98,7 +98,7 @@ export default function MainHeader({ activeWallet, onWalletChange }: MainHeaderP
                 backgroundColor: isDark ? colors.background : '#f8fafc' 
               }
             ]} 
-            onPress={() => router.push('/settings')} 
+            onPress={() => router.push('/Settings')} 
             activeOpacity={0.8}
           >
             <UserAvatar user={user} size={46} />

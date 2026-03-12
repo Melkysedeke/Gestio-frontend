@@ -74,7 +74,7 @@ export default function TabLayout() {
         />
 
         <Tabs.Screen
-          name="transactions"
+          name="Transactions"
           options={{
             title: 'Transações',
             tabBarIcon: ({ color }) => <MaterialIcons name="receipt-long" size={26} color={color} />
@@ -82,7 +82,7 @@ export default function TabLayout() {
         />
 
         <Tabs.Screen
-          name="add"
+          name="Add"
           options={{
             title: '',
             tabBarIcon: () => null,
@@ -104,7 +104,7 @@ export default function TabLayout() {
         />
 
         <Tabs.Screen
-          name="debts"
+          name="Debts"
           options={{
             title: 'Dívidas',
             tabBarIcon: ({ color }) => <MaterialIcons name="money-off" size={26} color={color} />
@@ -112,7 +112,7 @@ export default function TabLayout() {
         />
 
         <Tabs.Screen
-          name="goals"
+          name="Goals"
           options={{
             title: 'Objetivos',
             tabBarIcon: ({ color }) => <MaterialIcons name="flag" size={26} color={color} />
