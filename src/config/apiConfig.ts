@@ -1,3 +1,2 @@
-export const API_BASE_URL = 'http://192.168.0.114:3000';
-
-export const API_TIMEOUT = 10000; // 10 segundos
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+export const API_TIMEOUT = 15000; // 15 segundos para compensar o 'sono' do Render'

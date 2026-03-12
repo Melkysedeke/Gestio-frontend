@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { API_BASE_URL, API_TIMEOUT } from '../config/apiConfig';
-import { useAuthStore } from '../stores/authStore'; // 🚀 Importação estática normal
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -10,8 +9,12 @@ const api = axios.create({
   }
 });
 
-api.interceptors.request.use((config) => {
+// 🚀 Adicionamos o 'async' aqui
+api.interceptors.request.use(async (config) => {
   try {
+    // 🚀 Importação dinâmica com ES Modules (O TypeScript e o ESLint adoram isso)
+    const { useAuthStore } = await import('../stores/authStore'); 
+    
     const token = useAuthStore.getState().token;
 
     if (token) {
