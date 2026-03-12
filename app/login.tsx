@@ -1,24 +1,32 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView
+  Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image, StatusBar
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 import { useAuthStore } from '../src/stores/authStore';
 import { authService } from '../src/services/authService';
+import api from '../src/services/api';
+import { useThemeColor } from '@/hooks/useThemeColor';
+import SubHeader from '@/components/SubHeader';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { colors, isDark } = useThemeColor();
   const signIn = useAuthStore((state) => state.signIn);
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  
   const [loading, setLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
+  // --- FLUXO DE LOGIN COM E-MAIL ---
   const handleLogin = async () => {
     if (!email || !password) {
       return Alert.alert("Atenção", "Preencha todos os campos");
@@ -28,46 +36,73 @@ export default function LoginScreen() {
 
     try {
       const { user, token } = await authService.login({ email, password });
+      
+      Alert.alert("Bem-vindo de volta", "Acesso concedido!");
       await signIn(user, token);
+      router.replace('/(tabs)');
     } catch (error: any) {
       console.error("❌ Erro no Acesso:", error.message);
-      Alert.alert("Erro no Acesso", error.message);
+      Alert.alert("Erro no Acesso", error.message || "E-mail ou senha incorretos.");
     } finally {
       setLoading(false); 
     }
   };
 
+  // --- 🚀 FLUXO DO GOOGLE ---
+  const handleGoogleLogin = async () => {
+    try {
+      setIsGoogleLoading(true);
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      
+      if (userInfo.type === 'cancelled') return; 
+
+      const idToken = userInfo.type === 'success' ? userInfo.data?.idToken : null;
+      if (!idToken) throw new Error("Falha ao obter o token do Google");
+
+      const response = await api.post('/users/auth/google', { idToken });
+
+      await signIn(response.data.user, response.data.token);
+      router.replace('/(tabs)');
+    } catch (error: any) {
+      console.error("Erro no Google Login:", error);
+      Alert.alert("Erro", "Não foi possível entrar com o Google.");
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+
+      {/* 🚀 SUBHEADER */}
+      <Animated.View entering={FadeInUp.delay(50).duration(600).springify()}>
+        <SubHeader title="Acessar Conta" />
+      </Animated.View>
+
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
           
-          <Animated.View entering={FadeInUp.delay(100).duration(800).springify()} style={styles.header}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <MaterialIcons name="arrow-back-ios" size={20} color="#0f172a" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Acesso</Text>
-            <View style={{ width: 40 }} />
-          </Animated.View>
-
           <View style={styles.main}>
-            <Animated.View entering={FadeInDown.delay(200).duration(1000).springify()} style={styles.heroSection}>
-              <View style={styles.iconContainer}>
-                <MaterialIcons name="account-balance-wallet" size={32} color="#FFFFFF" />
+            
+            <Animated.View entering={FadeInDown.delay(100).duration(800).springify()} style={styles.heroSection}>
+              <View style={[styles.iconContainer, { backgroundColor: colors.primary }]}>
+                <MaterialIcons name="account-balance-wallet" size={28} color="#FFFFFF" />
               </View>
-              <Text style={styles.title}>Bem-vindo(a)</Text>
-              <Text style={styles.subtitle}>Gerencie suas finanças com segurança.</Text>
+              <Text style={[styles.title, { color: colors.text }]}>Bem-vindo(a) de volta!</Text>
+              <Text style={[styles.subtitle, { color: colors.textSub }]}>Gerencie suas finanças com segurança.</Text>
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(400).duration(1000).springify()} style={styles.form}>
+            <Animated.View entering={FadeInDown.delay(200).duration(800).springify()} style={styles.form}>
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email</Text>
-                <View style={styles.inputWrapper}>
-                  <MaterialIcons name="mail-outline" size={20} color="#637588" style={styles.inputIconLeft} />
+                <Text style={[styles.label, { color: colors.text }]}>E-mail</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <MaterialIcons name="mail-outline" size={20} color={colors.textSub} style={styles.inputIconLeft} />
                   <TextInput
-                    style={styles.input}
-                    placeholder="gestio@example.com"
-                    placeholderTextColor="#9ca3af"
+                    style={[styles.input, { color: colors.text }]}
+                    placeholder="gestio@exemplo.com"
+                    placeholderTextColor={colors.textSub}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     value={email}
@@ -77,71 +112,115 @@ export default function LoginScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={styles.label}>Senha</Text>
-                </View>
-                <View style={styles.inputWrapper}>
-                  <MaterialIcons name="lock-outline" size={20} color="#637588" style={styles.inputIconLeft} />
+                <Text style={[styles.label, { color: colors.text }]}>Senha</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <MaterialIcons name="lock-outline" size={20} color={colors.textSub} style={styles.inputIconLeft} />
                   <TextInput
-                    style={styles.input}
-                    placeholder="sua senha"
-                    placeholderTextColor="#9ca3af"
+                    style={[styles.input, { color: colors.text }]}
+                    placeholder="Sua senha"
+                    placeholderTextColor={colors.textSub}
                     secureTextEntry={!isPasswordVisible}
                     value={password}
                     onChangeText={setPassword}
                   />
                   <TouchableOpacity style={styles.inputIconRight} onPress={() => setIsPasswordVisible(!isPasswordVisible)}>
-                    <MaterialIcons name={isPasswordVisible ? "visibility" : "visibility-off"} size={22} color="#637588" />
+                    <MaterialIcons name={isPasswordVisible ? "visibility" : "visibility-off"} size={22} color={colors.textSub} />
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.forgotButton}>
-                  <Text style={styles.forgotText}>Esqueceu sua senha?</Text>
+                
+                {/* 🚀 BOTÃO ESQUECI A SENHA */}
+                <TouchableOpacity style={styles.forgotButton} onPress={() => Alert.alert('Em breve', 'Recuperação de senha será ativada.')}>
+                  <Text style={[styles.forgotText, { color: colors.primary }]}>Esqueceu a senha?</Text>
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={loading}>
+              <TouchableOpacity 
+                style={[styles.loginButton, { backgroundColor: colors.primary }]} 
+                onPress={handleLogin} 
+                disabled={loading || isGoogleLoading}
+              >
                 {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.loginButtonText}>Entrar</Text>}
               </TouchableOpacity>
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(600).duration(1000).springify()}>
+            {/* 🚀 SEÇÃO DO GOOGLE */}
+            <Animated.View entering={FadeInDown.delay(300).duration(800)} style={styles.googleSection}>
+              <View style={styles.dividerContainer}>
+                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                <Text style={[styles.dividerText, { color: colors.textSub }]}>OU</Text>
+                <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+              </View>
+
+              <TouchableOpacity 
+                style={[styles.googleButton, { backgroundColor: colors.card, borderColor: colors.border }]} 
+                onPress={handleGoogleLogin}
+                disabled={isGoogleLoading || loading}
+                activeOpacity={0.8}
+              >
+                {isGoogleLoading ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <View style={styles.googleButtonContent}>
+                    <Image source={require('../assets/images/google.png')} style={styles.googleIcon} />
+                    <Text style={[styles.googleButtonText, { color: colors.text }]}>Entrar com Google</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+
+            <View style={{ flex: 1 }} />
+
+            {/* FOOTER */}
+            <Animated.View entering={FadeInDown.delay(400).duration(800)}>
               <View style={styles.footer}>
-                <Text style={styles.footerText}>Não tem conta? </Text>
+                <Text style={[styles.footerText, { color: colors.textSub }]}>Não tem conta? </Text>
                 <TouchableOpacity onPress={() => router.push('/Register')}>
-                  <Text style={styles.registerText}>Registre-se agora</Text>
+                  <Text style={[styles.registerText, { color: colors.primary }]}>Registre-se agora</Text>
                 </TouchableOpacity>
               </View>
             </Animated.View>
+
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#f8fafc' },
-  scrollContainer: { flexGrow: 1, paddingBottom: 24 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
-  backButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#0f172a' },
-  main: { flex: 1, paddingHorizontal: 24, paddingTop: 8, paddingBottom: 24 },
-  heroSection: { marginBottom: 40, alignItems: 'center' },
-  iconContainer: { width: 64, height: 64, backgroundColor: '#1773cf', borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 24, shadowColor: '#1773cf', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
-  title: { fontSize: 30, fontWeight: 'bold', color: '#111418', marginBottom: 8, textAlign: 'center' },
-  subtitle: { fontSize: 16, color: '#637588', textAlign: 'center' },
-  form: { width: '100%', gap: 20 },
-  inputGroup: { gap: 8 },
-  label: { fontSize: 14, fontWeight: '500', color: '#111418', marginBottom: 6 },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#cbd5e1', height: 50, paddingHorizontal: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
+  container: { flex: 1 },
+  scrollContainer: { flexGrow: 1, paddingBottom: 16 },
+  main: { flex: 1, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16 },
+  
+  heroSection: { marginBottom: 32, alignItems: 'center' },
+  iconContainer: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 16, elevation: 4 },
+  title: { fontSize: 28, fontWeight: '800', marginBottom: 6, textAlign: 'center' },
+  subtitle: { fontSize: 15, textAlign: 'center' },
+  
+  form: { width: '100%', gap: 16 },
+  inputGroup: { gap: 6 },
+  label: { fontSize: 13, fontWeight: 'bold', marginLeft: 4 },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, height: 48, paddingHorizontal: 12 },
   inputIconLeft: { marginRight: 8 },
-  input: { flex: 1, height: '100%', fontSize: 16, color: '#111418' },
+  input: { flex: 1, height: '100%', fontSize: 15 },
   inputIconRight: { padding: 8, marginLeft: 4, justifyContent: 'center', alignItems: 'center' },
-  forgotButton: { alignSelf: 'flex-end', marginTop: 4 },
-  forgotText: { fontSize: 14, fontWeight: '500', color: '#1773cf' },
-  loginButton: { marginTop: 16, backgroundColor: '#1773cf', borderRadius: 12, paddingVertical: 16, alignItems: 'center', justifyContent: 'center', shadowColor: '#1773cf', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
+  
+  forgotButton: { alignSelf: 'flex-end', marginTop: 2 },
+  forgotText: { fontSize: 13, fontWeight: '600' },
+  
+  loginButton: { marginTop: 8, borderRadius: 12, height: 50, alignItems: 'center', justifyContent: 'center', elevation: 2 },
   loginButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
-  footer: { marginTop: 40, marginBottom: 16, flexDirection: 'row', justifyContent: 'center' },
-  footerText: { color: '#637588', fontSize: 14 },
-  registerText: { color: '#1773cf', fontWeight: 'bold', fontSize: 14 },
+
+  googleSection: { width: '100%' },
+  dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { marginHorizontal: 12, fontSize: 12, fontWeight: 'bold' },
+  googleButton: { height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+  googleButtonContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  googleIcon: { width: 22, height: 22 },
+  googleButtonText: { fontSize: 15, fontWeight: '700' },
+
+  footer: { marginTop: 24, marginBottom: 8, flexDirection: 'row', justifyContent: 'center' },
+  footerText: { fontSize: 14 },
+  registerText: { fontWeight: 'bold', fontSize: 14 },
 });

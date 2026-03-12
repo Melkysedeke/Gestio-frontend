@@ -66,11 +66,20 @@ export default function SecurityScreen() {
           onPress: async () => {
             setLoading(true);
             try {
+              // 🚀 1. O Guarda de Trânsito: Se for convidado, APENAS limpa o banco local e sai.
+              if (isGuest) {
+                await purgeDatabase(); 
+                router.replace('/Welcome');
+                return; // O return impede que o código continue e bata na API abaixo
+              }
+
+              // 🚀 2. Se NÃO for convidado (Conta Oficial), deleta no servidor primeiro e depois limpa o celular.
               await api.delete('/users/delete'); 
               await purgeDatabase(); 
               router.replace('/Welcome');
+
             } catch (error) {
-              console.error(error);
+              console.error("Erro ao excluir conta:", error);
               Alert.alert('Erro', 'Não foi possível excluir os dados no servidor. Verifique sua conexão.');
             } finally {
               setLoading(false);

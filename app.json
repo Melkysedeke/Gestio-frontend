@@ -20,7 +20,7 @@
     "android": {
       "package": "com.gestio",
       "adaptiveIcon": {
-        "backgroundColor": "#010B19",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/adaptive-icon-foreground.png",
         "monochromeImage": "./assets/images/icon-monochrome.png"
       },
@@ -59,7 +59,8 @@
             }
           }
         }
-      ]
+      ],
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true,

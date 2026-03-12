@@ -17,9 +17,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../src/stores/authStore'; 
 import { useThemeColor } from '@/hooks/useThemeColor'; 
 import { useThemeStore } from '../src/stores/themeStore';  
+import api from '../src/services/api'; // 🚀 Importação da API
 
 import SubHeader from '@/components/SubHeader';
-
 import UserAvatar from '../components/UserAvatar'; 
 
 export default function SettingsScreen() {
@@ -41,7 +41,7 @@ export default function SettingsScreen() {
     if (isGuest) {
       Alert.alert(
         "Recurso Indisponível", 
-        "Registre uma conta para personalizar sua foto e salvar na nuvem.",
+        "Registre uma conta oficial para personalizar sua foto e salvar na nuvem.",
         [
           { text: "Cancelar", style: "cancel" },
           { text: "Criar Conta", onPress: () => router.push('/Register') }
@@ -51,22 +51,55 @@ export default function SettingsScreen() {
     }
 
     try {
+      // Pedir permissão (Boa prática)
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (permissionResult.granted === false) {
+        Alert.alert("Permissão Necessária", "Precisamos de acesso à sua galeria para alterar a foto de perfil.");
+        return;
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'], // 🚀 Resolve o aviso amarelo do Expo!
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.3,
-        base64: true,
+        quality: 0.5, // Podemos subir a qualidade pois não usaremos Base64 pesado
       });
 
-      if (!result.canceled && result.assets[0].base64) {
+      if (!result.canceled && result.assets[0].uri) {
         setIsUploadingPhoto(true);
-        const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
-        await updateUserSetting({ avatar: base64Image });
+        
+        const localUri = result.assets[0].uri;
+        const filename = localUri.split('/').pop() || 'avatar.jpg';
+        
+        // Descobre se é .jpg, .png, etc para o backend saber lidar
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+        // 🚀 A MÁGICA: Empacotando como Formulário Físico (FormData)
+        // É exatamente isso que o "upload.single('avatar')" do seu Multer espera ler!
+        const formData = new FormData();
+        formData.append('avatar', {
+          uri: localUri,
+          name: filename,
+          type
+        } as any);
+
+        // 🚀 Disparando para a sua API com o cabeçalho correto
+        const response = await api.patch('/users/avatar', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+
+        const newAvatarUrl = response.data.avatar;
+
+        // Atualiza o Zustand com a URL oficial que voltou do Supabase!
+        await updateUserSetting({ avatar: newAvatarUrl });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao alterar foto:", error);
-      Alert.alert("Erro", "Não foi possível alterar a foto de perfil.");
+      Alert.alert("Erro", "Não foi possível alterar a foto de perfil. Verifique sua conexão.");
     } finally {
       setIsUploadingPhoto(false);
     }
@@ -119,12 +152,10 @@ export default function SettingsScreen() {
           <View style={styles.avatarContainer}>
             <View style={[styles.avatarWrapper, { borderColor: colors.card }]}>
               {isUploadingPhoto ? (
-                // Indicador de carregamento enquanto faz o upload
                 <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
                   <ActivityIndicator size="small" color={colors.primary} />
                 </View>
               ) : (
-                // 🚀 Uso do componente genérico de Avatar!
                 <UserAvatar user={user} size={100} />
               )}
             </View>
@@ -132,6 +163,7 @@ export default function SettingsScreen() {
               style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.background }]} 
               onPress={handleEditPhoto}
               disabled={isUploadingPhoto}
+              activeOpacity={0.8}
             >
               <MaterialIcons name="photo-camera" size={16} color="#FFF" />
             </TouchableOpacity>
@@ -152,6 +184,7 @@ export default function SettingsScreen() {
             <TouchableOpacity 
               style={[styles.registerButton, { backgroundColor: colors.primary }]}
               onPress={() => router.push('/Register')}
+              activeOpacity={0.8}
               >
               <MaterialIcons name="person-add" size={18} color="#FFF" />
               <Text style={styles.registerButtonText}>Criar Conta Oficial</Text>
@@ -217,20 +250,9 @@ export default function SettingsScreen() {
   );
 }
 
-// Estilos limpos: apagamos as regras de imagem que agora vivem no UserAvatar.tsx
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerContainer: { borderBottomWidth: 1 },
-  headerContent: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    paddingVertical: 16, 
-    paddingHorizontal: 20 
-  },
-  headerTitle: { fontSize: 18, fontWeight: 'bold' },
-  headerButton: { width: 40, alignItems: 'flex-start' },
-  headerPlaceholder: { width: 40 },
+  // 🚀 Estilos do header antigo apagados
   scrollContent: { paddingBottom: 40 },
   userSection: { alignItems: 'center', marginTop: 24, marginBottom: 32 },
   avatarContainer: { position: 'relative', marginBottom: 16 },

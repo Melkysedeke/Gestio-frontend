@@ -13,6 +13,7 @@ interface AuthState {
   hasWallets: boolean;
   hideValues: boolean;
   lastSyncTime: number;
+  setSession: (user: any, token: string) => void;
   setLastSyncTime: (time: number) => void;
   setHasWallets: (value: boolean) => void;
   loadStorageData: () => Promise<void>;
@@ -40,6 +41,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setUser: (user) => set({ user }),
   toggleHideValues: () => set((state) => ({ hideValues: !state.hideValues })),
   
+  setSession: (user, token) => {
+    set({ user, token }); 
+    // Se você tiver uma variável como 'isAuthenticated: true', adicione aqui também!
+  },
+
   runSeed: async () => {
     try {
       const count = await database.get('categories').query().fetchCount();
