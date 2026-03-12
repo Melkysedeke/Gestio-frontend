@@ -9,15 +9,16 @@ import {
   Alert,
   StatusBar,
   ActivityIndicator, 
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+} from 'react-native'
 import { MaterialIcons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router'; 
 import * as ImagePicker from 'expo-image-picker';
 
 import { useAuthStore } from '../src/stores/authStore'; 
 import { useThemeColor } from '@/hooks/useThemeColor'; 
-import { useThemeStore } from '../src/stores/themeStore';   
+import { useThemeStore } from '../src/stores/themeStore';  
+
+import SubHeader from '@/components/SubHeader';
 
 import UserAvatar from '../components/UserAvatar'; 
 
@@ -111,18 +112,7 @@ export default function SettingsScreen() {
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       <Stack.Screen options={{ headerShown: false }} />
 
-      <SafeAreaView 
-          style={[styles.headerContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]} 
-          edges={['top']}
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
-            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Meu Perfil</Text>
-          <View style={styles.headerPlaceholder} />
-        </View>
-      </SafeAreaView>
+      <SubHeader title="Meu Perfil" />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.userSection}>

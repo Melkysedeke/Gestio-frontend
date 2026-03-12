@@ -10,9 +10,10 @@ import {
   Platform 
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useAuthStore } from '../src/stores/authStore';
+
+import SubHeader from '@/components/SubHeader'; // 🚀 Importando o novo padrão
 
 const FAQ_ITEMS = [
   { 
@@ -52,7 +53,6 @@ export default function HelpScreen() {
     }
   };
 
-  // ✅ Constantes de cor calculadas fora do loop
   const guestWarningBg = isDark ? 'rgba(23, 115, 207, 0.1)' : '#e0f2fe';
   const faqBodyBg = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)';
 
@@ -60,16 +60,13 @@ export default function HelpScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      {/* HEADER */}
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Ajuda e Suporte</Text>
-        <View style={styles.placeholderView} /> 
-      </View>
+      {/* 🚀 Substituindo o antigo bloco de header */}
+      <SubHeader title="Ajuda e Suporte" />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+      >
         
         {/* AVISO MODO CONVIDADO */}
         {isGuest && (
@@ -83,10 +80,12 @@ export default function HelpScreen() {
 
         <Text style={[styles.sectionTitle, { color: colors.textSub }]}>Fale Conosco</Text>
         
+        {/* 🚀 Bloco de botões de contato corrigido */}
         <View style={styles.contactRow}>
           <TouchableOpacity 
             style={[styles.contactCard, { backgroundColor: colors.card, borderColor: colors.border }]} 
             onPress={() => handleContact('whatsapp')}
+            activeOpacity={0.7}
           >
              <MaterialIcons name="chat" size={28} color="#0bda5b" />
              <Text style={[styles.contactText, { color: colors.text }]}>WhatsApp</Text>
@@ -95,6 +94,7 @@ export default function HelpScreen() {
           <TouchableOpacity 
             style={[styles.contactCard, { backgroundColor: colors.card, borderColor: colors.border }]} 
             onPress={() => handleContact('email')}
+            activeOpacity={0.7}
           >
              <MaterialIcons name="email" size={28} color={colors.primary} />
              <Text style={[styles.contactText, { color: colors.text }]}>E-mail</Text>
@@ -143,27 +143,10 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1 
   },
-  header: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between',
-    paddingHorizontal: 20, 
-    paddingTop: Platform.OS === 'ios' ? 60 : 40, 
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-  },
-  backButton: { 
-    padding: 4 
-  },
-  placeholderView: { 
-    width: 24 
-  },
-  title: { 
-    fontSize: 18, 
-    fontWeight: 'bold' 
-  },
-  content: { 
-    padding: 20 
+  // 🚀 O styles.content virou scrollContent para melhor legibilidade e padding final
+  scrollContent: { 
+    padding: 20,
+    paddingBottom: 40
   },
   sectionTitle: { 
     fontSize: 14, 
@@ -190,7 +173,8 @@ const styles = StyleSheet.create({
   },
   contactRow: { 
     flexDirection: 'row', 
-    gap: 12 
+    gap: 12,
+    marginBottom: 24, // Adicionado para dar espaço do título FAQ
   },
   contactCard: {
     flex: 1, 
@@ -199,7 +183,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center', 
     justifyContent: 'center', 
-    gap: 8
+    gap: 8,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 3 },
+      android: { elevation: 2 },
+    }),
   },
   contactText: { 
     fontWeight: '600', 

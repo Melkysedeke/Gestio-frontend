@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
 import { Stack, useRouter } from 'expo-router'; 
 import * as SplashScreenNative from 'expo-splash-screen';
@@ -11,27 +11,29 @@ import { useThemeStore } from '../src/stores/themeStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
 import AnimatedSplashScreen from '../components/SplashScreen'; 
-import { syncData } from '../src/services/SyncService'; // 🚀 Importação da Sincronização
+import { syncData } from '../src/services/SyncService';
 
 SplashScreenNative.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
-  const [isSyncingInitial, setIsSyncingInitial] = useState(false); // 🚀 Controlo de Sincronia
+  const [isSyncingInitial, setIsSyncingInitial] = useState(false);
   const [splashAnimationFinished, setSplashAnimationFinished] = useState(false);
   
-  // 🚀 Extraímos também o token da store
   const { user, token, loadStorageData } = useAuthStore();
   const _hasHydrated = useThemeStore(state => state._hasHydrated);
   
   const router = useRouter();
   const { isDark } = useThemeColor();
+  
+  // ✅ CORREÇÃO 1: Tipo tipado corretamente para React Native (ReturnType de setTimeout)
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [fontsLoaded] = useFonts({
     ...MaterialIcons.font,
   });
 
-  // 1. Carga de dados local inicial (WatermelonDB + AsyncStorage)
+  // 1. Carga de dados local inicial
   useEffect(() => {
     async function prepare() {
       try {
@@ -43,41 +45,54 @@ export default function RootLayout() {
       }
     }
     prepare();
-  }, []);
+  }, [loadStorageData]);
 
-  // 2. Sincronização Obrigatória Pós-Carga
+  // 2. Sincronização com Proteção de Tempo (Timeout)
   useEffect(() => {
     async function performInitialSync() {
-      // Só tenta sincronizar se o banco local foi carregado e o utilizador está autenticado
-      if (appIsReady && user && token) {
+      const isGuest = user?.email?.includes('@local');
+
+      if (appIsReady && user && token && !isGuest) {
         setIsSyncingInitial(true);
+
+        const timeout = setTimeout(() => {
+          setIsSyncingInitial(false);
+          console.log("⏳ Sync demorando... liberando modo offline.");
+        }, 8000);
+
         try {
           await syncData();
-        } catch {
+        } catch (error) {
+          console.log("Sync inicial falhou, entrando em modo offline.", error);
         } finally {
           setIsSyncingInitial(false);
+          clearTimeout(timeout);
         }
       }
     }
     
     performInitialSync();
+
+    return () => {
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    };
   }, [appIsReady, user, token]);
 
-  // 3. Lógica de Redirecionamento
+  // 3. Lógica de Redirecionamento Centralizada
   useEffect(() => {
     const canNavigate = appIsReady && fontsLoaded && _hasHydrated && splashAnimationFinished;
     
     if (canNavigate) {
-      if (user) {
-        // Se houver utilizador logado, aguardamos que a sincronização termine!
-        if (!isSyncingInitial) {
+      if (!isSyncingInitial) {
+        if (user) {
           router.replace('/(tabs)');
+        } else {
+          router.replace('/Welcome'); 
         }
-      } else {
-        router.replace('/Welcome'); 
       }
     }
-  }, [appIsReady, fontsLoaded, _hasHydrated, splashAnimationFinished, user, isSyncingInitial]);
+    // ✅ CORREÇÃO 6: Adicionado router nas dependências
+  }, [appIsReady, fontsLoaded, _hasHydrated, splashAnimationFinished, user, isSyncingInitial, router]);
 
   const onLayoutRootView = useCallback(async () => {
     if (appIsReady && fontsLoaded && _hasHydrated) {
@@ -97,7 +112,6 @@ export default function RootLayout() {
         style={[styles.container, { backgroundColor: rootBackgroundColor }]} 
         onLayout={onLayoutRootView}
       >
-        {/* 🚀 O STACK FICA SEMPRE MONTADO para o router não se perder nas rotas */}
         <Stack screenOptions={{ freezeOnBlur: false, headerShown: false, animation: 'fade' }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="Welcome" /> 
@@ -106,19 +120,22 @@ export default function RootLayout() {
           <Stack.Screen name="index" />
         </Stack>
 
-        {/* 🚀 A SPLASH E O LOADING CONTINUAM POR CIMA DE TUDO (ABSOLUTE) */}
         {(!splashAnimationFinished || isSyncingInitial) && (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: rootBackgroundColor, justifyContent: 'center', alignItems: 'center', zIndex: 999 }]}>
-            <AnimatedSplashScreen 
-              onFinish={() => setSplashAnimationFinished(true)} 
-            />
-            
-            {/* Feedback visual elegante durante a sincronização longa */}
-            {isSyncingInitial && splashAnimationFinished && (
+          <View 
+            style={[
+                StyleSheet.absoluteFill, 
+                { backgroundColor: rootBackgroundColor, justifyContent: 'center', alignItems: 'center', zIndex: 999 }
+            ]}
+          >
+            {!splashAnimationFinished ? (
+              <AnimatedSplashScreen 
+                onFinish={() => setSplashAnimationFinished(true)} 
+              />
+            ) : (
               <View style={styles.syncContainer}>
-                <ActivityIndicator size="small" color={isDark ? '#FFFFFF' : '#010B19'} />
+                <ActivityIndicator size="large" color={isDark ? '#38BDF8' : '#1773CF'} />
                 <Text style={[styles.syncText, { color: isDark ? '#A0AEC0' : '#4A5568' }]}>
-                  Atualizando suas informações...
+                  Sincronizando seus dados...
                 </Text>
               </View>
             )}
@@ -130,18 +147,7 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  syncContainer: {
-    position: 'absolute',
-    bottom: 60,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  syncText: {
-    fontSize: 14,
-    fontWeight: '500',
-  }
+  container: { flex: 1 },
+  syncContainer: { alignItems: 'center', gap: 15 },
+  syncText: { fontSize: 15, fontWeight: '600', letterSpacing: 0.3 }
 });

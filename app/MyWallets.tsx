@@ -10,8 +10,7 @@ import {
   StatusBar
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 
 // Banco de Dados e Stores
 import { database } from '../src/database';
@@ -19,13 +18,14 @@ import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor'; 
 
 // Componentes
+import SubHeader from '@/components/SubHeader'; // 🚀 Nosso SubHeader!
 import CreateWalletModal from '../components/CreateWalletModal';
 import EditWalletModal from '../components/EditWalletModel'; 
 
 export default function MyWalletsScreen() {
   const user = useAuthStore(state => state.user);
   const { updateUserSetting, setHasWallets } = useAuthStore();
-  const hideValues = useAuthStore(state => state.hideValues); // ✅ Integrado para privacidade
+  const hideValues = useAuthStore(state => state.hideValues); 
   
   const { colors, isDark } = useThemeColor();
   
@@ -107,35 +107,37 @@ export default function MyWalletsScreen() {
     );
   }
 
+  // 🚀 Definindo o botão extra da direita
+  const headerRightButton = (
+    <TouchableOpacity 
+      onPress={() => setCreateVisible(true)} 
+      style={styles.addButton}
+      activeOpacity={0.7}
+    >
+      <MaterialIcons name="add" size={28} color={colors.primary} />
+    </TouchableOpacity>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      <SafeAreaView style={[styles.headerContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]} edges={['top']}>
-          <View style={styles.headerContent}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
-              <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-            </TouchableOpacity>
-            
-            <Text style={[styles.title, { color: colors.text }]}>Minhas Carteiras</Text>
-            
-            <TouchableOpacity onPress={() => setCreateVisible(true)} style={styles.headerButton}>
-              <MaterialIcons name="add" size={28} color={colors.primary} />
-            </TouchableOpacity>
-          </View>
-      </SafeAreaView>
+      {/* 🚀 O SubHeader substituindo o SafeAreaView antigo */}
+      <SubHeader 
+        title="Minhas Carteiras" 
+        rightComponent={headerRightButton} 
+      />
 
       <FlatList 
         data={wallets}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
-        extraData={[user?.settings?.last_opened_wallet, hideValues]} // ✅ Garante atualização visual
+        extraData={[user?.settings?.last_opened_wallet, hideValues]} 
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
           const isActive = user?.settings?.last_opened_wallet === item.id;
           const balanceValue = Number(item.balance || 0);
 
-          // ✅ Lógica de cores pré-calculada para performance
           const cardBg = isActive 
             ? (isDark ? '#1e293b' : '#f0f9ff') 
             : colors.card;
@@ -236,22 +238,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center', 
     alignItems: 'center' 
   },
-  headerContainer: { 
-    borderBottomWidth: 1 
-  },
-  headerContent: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    paddingHorizontal: 20, 
-    paddingVertical: 12 
-  },
-  headerButton: { 
-    padding: 4 
-  },
-  title: { 
-    fontSize: 18, 
-    fontWeight: 'bold' 
+  // 🚀 O botão de adição com alinhamento à direita (o SubHeader cuida do resto)
+  addButton: { 
+    padding: 4,
+    alignItems: 'flex-end',
+    justifyContent: 'center'
   },
   list: { 
     padding: 20, 

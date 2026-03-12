@@ -6,10 +6,12 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
+import SubHeader from '@/components/SubHeader';
+
 export default function NotificationsScreen() {
   const { colors, isDark } = useThemeColor();
 
-  // ✅ Constantes dinâmicas calculadas antes do return
+  // Constantes dinâmicas calculadas antes do return
   const iconCircleBg = isDark ? 'rgba(23, 115, 207, 0.1)' : '#f0f9ff';
   const badgeBg = isDark ? '#334155' : '#f1f5f9';
 
@@ -17,14 +19,8 @@ export default function NotificationsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       
-      {/* HEADER */}
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Notificações</Text>
-        <View style={styles.placeholderView} />
-      </View>
+      {/* HEADER PADRONIZADO */}
+      <SubHeader title="Notificações" />
 
       {/* CONTEÚDO DE BLOQUEIO / EM BREVE */}
       <View style={styles.content}>
@@ -63,25 +59,7 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1 
   },
-  header: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between',
-    paddingHorizontal: 20, 
-    paddingTop: 60, 
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-  },
-  backButton: { 
-    padding: 4 
-  },
-  title: { 
-    fontSize: 18, 
-    fontWeight: 'bold' 
-  },
-  placeholderView: { 
-    width: 24 
-  },
+  // 🚀 Removidos os estilos de header antigos que não eram mais usados
   content: { 
     flex: 1, 
     alignItems: 'center', 

@@ -7,12 +7,17 @@ import {
   TouchableOpacity, 
   Alert, 
   ActivityIndicator,
-  StatusBar 
+  StatusBar,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons'; // 🚀 Importado para o ícone de cadeado
 import { router } from 'expo-router';
 import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
+
+import SubHeader from '@/components/SubHeader';
 
 export default function EditProfileScreen() {
   const user = useAuthStore(state => state.user);
@@ -44,72 +49,81 @@ export default function EditProfileScreen() {
     }
   }
 
-  // ✅ Constantes para evitar objetos literais no render
+  // Cores dinâmicas para o modo desativado (Feedback Visual)
+  const disabledBgColor = isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9';
   const buttonOpacity = loading ? 0.7 : 1;
-  const emailInputBg = isGuest ? colors.border : colors.inputBg;
-  const emailTextColor = isGuest ? colors.textSub : colors.text;
-  const emailOpacity = isGuest ? 0.7 : 1;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Dados Pessoais</Text>
-        <View style={styles.placeholderView} /> 
-      </View>
+      <SubHeader title="Dados Pessoais" />
 
-      <View style={styles.form}>
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: colors.textSub }]}>Nome Completo</Text>
-          <TextInput 
-            style={[styles.input, { 
-                backgroundColor: colors.inputBg, 
-                borderColor: colors.border,
-                color: colors.text 
-            }]}
-            value={name}
-            onChangeText={setName}
-            placeholder="Seu nome"
-            placeholderTextColor={colors.textSub}
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <View style={styles.labelRow}>
-            <Text style={[styles.label, { color: colors.textSub }]}>E-mail</Text>
-            {isGuest && <Text style={[styles.guestBadge, { color: colors.primary }]}>Modo Convidado</Text>}
-          </View>
-          <TextInput 
-            style={[styles.input, { 
-                backgroundColor: emailInputBg, 
-                borderColor: colors.border,
-                color: emailTextColor,
-                opacity: emailOpacity
-            }]}
-            value={isGuest ? "Conta Local (Sincronização pendente)" : user?.email}
-            editable={false}
-            placeholderTextColor={colors.textSub}
-          />
-        </View>
-
-        <TouchableOpacity 
-          style={[styles.button, { backgroundColor: colors.primary, opacity: buttonOpacity }]} 
-          onPress={handleUpdate}
-          disabled={loading}
+      <KeyboardAvoidingView 
+        style={styles.keyboardView} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled" 
         >
-          {loading ? (
-            <ActivityIndicator color="#FFF" />
-          ) : (
-            <Text style={styles.buttonText}>
-              Atualizar Nome
+          {/* Campo: Nome Completo (Editável) */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: colors.textSub }]}>Nome Completo</Text>
+            <TextInput 
+              style={[styles.input, { 
+                  backgroundColor: colors.inputBg, 
+                  borderColor: colors.border,
+                  color: colors.text 
+              }]}
+              value={name}
+              onChangeText={setName}
+              placeholder="Seu nome"
+              placeholderTextColor={colors.textSub}
+              autoCapitalize="words"
+            />
+          </View>
+
+          {/* Campo: E-mail (Desativado com Feedback Visual) */}
+          <View style={styles.inputGroup}>
+            <View style={styles.labelRow}>
+              <Text style={[styles.label, { color: colors.textSub }]}>E-mail</Text>
+              {isGuest && <Text style={[styles.guestBadge, { color: colors.primary }]}>Modo Convidado</Text>}
+            </View>
+            
+            {/* 🚀 Wrapper para o Input Desativado + Ícone */}
+            <View style={[styles.disabledInputWrapper, { 
+              backgroundColor: disabledBgColor, 
+              borderColor: colors.border 
+            }]}>
+              <TextInput 
+                style={[styles.inputDisabledText, { color: colors.textSub }]}
+                value={isGuest ? "Conta Local (Sincronização pendente)" : user?.email}
+                editable={false}
+              />
+              <MaterialIcons name="lock-outline" size={20} color={colors.textSub} />
+            </View>
+            
+            <Text style={[styles.helperText, { color: colors.textSub }]}>
+              O e-mail de cadastro não pode ser alterado.
             </Text>
-          )}
-        </TouchableOpacity>
-      </View>
+          </View>
+
+          <TouchableOpacity 
+            style={[styles.button, { backgroundColor: colors.primary, opacity: buttonOpacity }]} 
+            onPress={handleUpdate}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.buttonText}>Atualizar Nome</Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -118,41 +132,30 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1 
   },
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    paddingHorizontal: 20, 
-    paddingTop: 60,
-    paddingBottom: 20 
+  keyboardView: {
+    flex: 1,
   },
-  backButton: { 
-    padding: 4 
-  },
-  title: { 
-    fontSize: 18, 
-    fontWeight: 'bold' 
-  },
-  placeholderView: { 
-    width: 24 
-  },
-  form: { 
+  scrollContent: { 
     padding: 20, 
-    gap: 20 
+    paddingBottom: 40,
+    gap: 20, 
   },
   inputGroup: { 
     gap: 8 
   },
   labelRow: { 
     flexDirection: 'row', 
-    justifyContent: 'space-between' 
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   label: { 
     fontSize: 14, 
     fontWeight: '600' 
   },
   guestBadge: { 
-    fontSize: 10 
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   input: { 
     borderWidth: 1, 
@@ -160,11 +163,32 @@ const styles = StyleSheet.create({
     padding: 14, 
     fontSize: 16,
   },
+  /* 🚀 Estilos do campo desativado */
+  disabledInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingRight: 14, // Espaço para o ícone do cadeado
+  },
+  inputDisabledText: {
+    flex: 1,
+    padding: 14,
+    fontSize: 16,
+  },
+  helperText: {
+    fontSize: 12,
+    marginTop: -4, 
+  },
   button: { 
     padding: 16, 
     borderRadius: 12, 
     alignItems: 'center',
-    marginTop: 10
+    marginTop: 10,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+      android: { elevation: 2 },
+    }),
   },
   buttonText: { 
     color: '#FFF', 
