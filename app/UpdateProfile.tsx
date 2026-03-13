@@ -36,6 +36,7 @@ export default function EditProfileScreen() {
     try {
         await updateUserSetting({ 
             name: name.trim(), 
+            email: user?.email
         });
 
         Alert.alert('Sucesso', 'Seus dados foram atualizados!', [
@@ -43,13 +44,12 @@ export default function EditProfileScreen() {
         ]);
     } catch (error: any) {
         console.error("Erro ao atualizar perfil:", error);
-        Alert.alert('Erro', 'Não foi possível salvar as alterações no banco local.');
+        const msg = error.response?.data?.error || 'Não foi possível salvar as alterações.';
+        Alert.alert('Erro', msg);
     } finally {
         setLoading(false);
     }
-  }
-
-  // Cores dinâmicas para o modo desativado (Feedback Visual)
+}
   const disabledBgColor = isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9';
   const buttonOpacity = loading ? 0.7 : 1;
 

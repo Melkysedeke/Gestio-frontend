@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { 
   Alert,
   View, 
@@ -30,22 +30,25 @@ export default function WelcomeScreen() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isGuestLoading, setIsGuestLoading] = useState(false);
 
+  // --- FLUXO DO GOOGLE (ATUALIZADO PARA A ROTA NOVA) ---
   const handleGoogleLogin = async () => {
     try {
       setIsGoogleLoading(true);
       await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();
-      if (userInfo.type === 'cancelled') {
-         return; 
-      }
+      
+      if (userInfo.type === 'cancelled') return; 
+      
       const idToken = userInfo.type === 'success' ? userInfo.data?.idToken : null;
       if (!idToken) throw new Error("Falha ao obter o token do Google");
+      
       const response = await api.post('/users/auth/google', { idToken });
       await signIn(response.data.user, response.data.token);
       router.replace('/(tabs)');
+      
     } catch (error: any) {
-      console.error("Erro no Google Login:", error);
-      Alert.alert("Erro", "Não foi possível conectar com o Google. Verifique sua conexão.");
+      console.error("❌ Erro Google Welcome:", error.response?.data || error.message);
+      Alert.alert("Erro", "Não foi possível entrar com o Google.");
     } finally {
       setIsGoogleLoading(false);
     }
@@ -177,23 +180,21 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative', 
   },
-  // 🚀 BOLHA 1 (Fundo - Gigante agora)
   staticBubble: {
     position: 'absolute',
-    bottom: -100, // Mais afundada
-    right: -80,   // Mais cortada na borda
-    width: 320,   // Era 220
-    height: 320,  // Era 220
+    bottom: -100,
+    right: -80,
+    width: 320,
+    height: 320,
     borderRadius: 160,
     zIndex: 0, 
   },
-  // 🚀 BOLHA 2 (Meio - Mais presente)
   intermediateBubble: {
     position: 'absolute',
     top: '38%',
-    left: -80,   // Puxada mais pra fora
-    width: 200,  // Era 120
-    height: 200, // Era 120
+    left: -80,
+    width: 200,
+    height: 200,
     borderRadius: 100,
     zIndex: 0,
   },
@@ -206,15 +207,14 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden', 
   },
-  // 🚀 BOLHA 3 (Header - Ocupando mais a lateral direita)
   headerBubble: {
     position: 'absolute',
-    top: -80,   // Subiu um pouco
-    right: -60, // Puxou pra direita
-    width: 260, // Era 160
-    height: 260,// Era 160
+    top: -80,
+    right: -60,
+    width: 260,
+    height: 260,
     borderRadius: 130,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)', // Levemente mais transparente para não ofuscar o ícone
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   iconCircle: {
     width: 86,
@@ -315,13 +315,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10, // Aumentei o espaço entre o ícone e o texto
-    paddingVertical: 14, // Era 12
-    paddingHorizontal: 32, // Era 24 - deixa a pílula mais larga
+    gap: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
     borderRadius: 30,
   },
   guestText: {
-    fontSize: 15, // Era 14 - mais legível
-    fontWeight: '700', // Era 600 - um pouco mais gordinha pra chamar atenção
+    fontSize: 15,
+    fontWeight: '700',
   }
 });
