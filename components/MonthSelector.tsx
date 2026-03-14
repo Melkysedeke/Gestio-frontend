@@ -96,13 +96,13 @@ const styles = StyleSheet.create({
   scrollContent: { 
     paddingHorizontal: 20,
     alignItems: 'center',
-    paddingVertical: 4, // 🚀 Pequeno respiro essencial para não cortar a sombra (elevation) no Android
+    paddingVertical: 2, // 🚀 Pequeno respiro essencial para não cortar a sombra (elevation) no Android
   },
   item: { 
     flexDirection: 'row',
     alignItems: 'baseline',
     paddingHorizontal: 14,
-    paddingVertical: 6, 
+    paddingVertical: 4, 
     borderRadius: 20, 
     borderWidth: 1.5,
     marginRight: 8,
