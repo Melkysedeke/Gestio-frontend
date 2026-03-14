@@ -13,7 +13,8 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router'; 
 import * as ImagePicker from 'expo-image-picker';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 
 import { useAuthStore } from '../src/stores/authStore'; 
 import { useThemeColor } from '@/hooks/useThemeColor'; 
@@ -23,11 +24,17 @@ import api from '../src/services/api';
 import SubHeader from '@/components/SubHeader';
 import UserAvatar from '../components/UserAvatar'; 
 
+// 🚀 Utilitários Padronizados
+import { triggerHaptic, triggerSelectionHaptic, triggerNotificationHaptic } from '@/src/utils/haptics';
+
 export default function SettingsScreen() {
   const user = useAuthStore((state) => state.user);
   const updateUserSetting = useAuthStore((state) => state.updateUserSetting);
   const signOut = useAuthStore((state) => state.signOut);
   const setTheme = useThemeStore((state) => state.setTheme);
+  
+  // 🚀 Pegando o estado de Haptics
+  const { hapticsEnabled, toggleHaptics } = useAuthStore();
   
   const isGuest = user?.email?.includes('@local');
   const { colors, isDark } = useThemeColor();
@@ -36,11 +43,24 @@ export default function SettingsScreen() {
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   const handleThemeSwitch = (value: boolean) => {
+    triggerSelectionHaptic();
     setTheme(value ? 'dark' : 'light');
   };
 
+  const handleToggleHaptics = () => {
+    toggleHaptics();
+    if (!hapticsEnabled) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      triggerSelectionHaptic();
+    }
+  };
+
   const handleEditPhoto = async () => {
+    triggerHaptic();
+
     if (isGuest) {
+      triggerNotificationHaptic(Haptics.NotificationFeedbackType.Warning);
       Alert.alert(
         "Recurso Indisponível", 
         "Registre uma conta oficial para personalizar sua foto e salvar na nuvem.",
@@ -56,6 +76,7 @@ export default function SettingsScreen() {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (permissionResult.granted === false) {
+        triggerNotificationHaptic(Haptics.NotificationFeedbackType.Error);
         Alert.alert("Permissão Necessária", "Precisamos de acesso à sua galeria para alterar a foto de perfil.");
         return;
       }
@@ -91,9 +112,11 @@ export default function SettingsScreen() {
 
         const newAvatarUrl = response.data.avatar;
         await updateUserSetting({ avatar: newAvatarUrl });
+        triggerNotificationHaptic(Haptics.NotificationFeedbackType.Success);
       }
     } catch (error: any) {
       console.error("Erro ao alterar foto:", error);
+      triggerNotificationHaptic(Haptics.NotificationFeedbackType.Error);
       Alert.alert("Erro", "Não foi possível alterar a foto de perfil. Verifique sua conexão.");
     } finally {
       setIsUploadingPhoto(false);
@@ -101,6 +124,7 @@ export default function SettingsScreen() {
   };
 
   const handleLogout = () => {
+    triggerNotificationHaptic(Haptics.NotificationFeedbackType.Warning);
     Alert.alert("Sair", "Deseja encerrar sua sessão?", [
       { text: "Cancelar", style: "cancel" },
       { text: "Sair", style: "destructive", onPress: async () => {
@@ -115,10 +139,15 @@ export default function SettingsScreen() {
       ? styles.menuIconBoxDestructive.backgroundColor 
       : (isDark ? 'rgba(23, 115, 207, 0.1)' : '#f0f9ff');
 
+    const handlePress = () => {
+        triggerSelectionHaptic();
+        if (onPress) onPress();
+    };
+
     return (
       <TouchableOpacity 
         style={styles.menuItem} 
-        onPress={onPress} 
+        onPress={handlePress} 
         activeOpacity={0.7}
         disabled={!onPress}
       >
@@ -141,20 +170,23 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar 
+        barStyle={isDark ? "light-content" : "dark-content"} 
+        backgroundColor="transparent" 
+        translucent 
+      />
       <Stack.Screen options={{ headerShown: false }} />
 
       <SubHeader title="Meu Perfil" />
 
       <ScrollView 
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 40) }]} 
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom + 20, 40) }]} 
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.userSection}>
           
           <View style={styles.avatarContainer}>
-            {/* 🚀 Ring corrigido para não amassar o Avatar */}
             <View style={[styles.avatarRing, { borderColor: colors.card }]}>
               {isUploadingPhoto ? (
                 <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
@@ -189,7 +221,7 @@ export default function SettingsScreen() {
           {isGuest && (
             <TouchableOpacity 
               style={[styles.registerButton, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/Register')}
+              onPress={() => { triggerHaptic(); router.push('/Register'); }}
               activeOpacity={0.8}
               >
               <MaterialIcons name="person-add" size={18} color="#FFF" />
@@ -213,6 +245,21 @@ export default function SettingsScreen() {
             <MenuItem icon="notifications-none" label="Notificações" onPress={() => router.push('/UpdateNotifications')} />
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             
+            <MenuItem 
+              icon="vibration" 
+              label="Vibração do App" 
+              showArrow={false}
+              rightElement={
+                <Switch 
+                  value={hapticsEnabled} 
+                  onValueChange={handleToggleHaptics} 
+                  trackColor={{ false: colors.border, true: colors.primary }} 
+                  thumbColor={"#FFF"} 
+                />
+              }
+            />
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
             <MenuItem 
               icon="dark-mode" 
               label="Modo Escuro" 
@@ -253,7 +300,7 @@ export default function SettingsScreen() {
 
         <Text style={[styles.versionText, { color: colors.textSub }]}>Versão 1.0.0 (Beta)</Text>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -264,10 +311,9 @@ const styles = StyleSheet.create({
   
   avatarContainer: { position: 'relative', marginBottom: 16 },
   
-  // 🚀 O anel não tem mais overflow: hidden nem height/width fixo para não amassar a foto
   avatarRing: {
     padding: 2, 
-    borderRadius: 60, // Garantia de círculo perfeito independente do conteúdo
+    borderRadius: 60, 
     borderWidth: 4,
     elevation: 5,
     shadowColor: '#000',
@@ -290,7 +336,7 @@ const styles = StyleSheet.create({
   editBadge: { 
     position: 'absolute', 
     bottom: 0, 
-    right: -4, // Ajustado levemente para acomodar o novo ring
+    right: -4, 
     width: 34, 
     height: 34, 
     borderRadius: 17, 
@@ -299,7 +345,7 @@ const styles = StyleSheet.create({
     borderWidth: 3 
   },
   
-  userName: { fontSize: 24, fontWeight: 'bold', marginBottom: 4 },
+  userName: { fontSize: 22, fontWeight: '800', marginBottom: 4, letterSpacing: -0.5 },
   userEmail: { fontSize: 14, marginBottom: 12 },
   guestBadge: { 
     flexDirection: 'row', 
@@ -340,7 +386,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center' 
   },
   menuIconBoxDestructive: { backgroundColor: '#fef2f2' },
-  menuLabel: { flex: 1, fontSize: 16, fontWeight: '500' },
+  menuLabel: { flex: 1, fontSize: 15, fontWeight: '600' },
   divider: { height: 1, marginLeft: 68 },
   versionText: { textAlign: 'center', fontSize: 11, marginTop: 8 }
 });

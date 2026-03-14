@@ -3,38 +3,36 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  TextInput, 
-  TouchableOpacity, 
   Alert, 
-  ActivityIndicator, 
   ScrollView,
   StatusBar,
-  KeyboardAvoidingView, // 🚀 Importado
-  Platform // 🚀 Importado
+  KeyboardAvoidingView, 
+  Platform 
 } from 'react-native';
-// 🚀 1. Importações da SafeArea
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+
 import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import api from '../src/services/api';
 
+// 🚀 Componentes Padronizados
 import SubHeader from '@/components/SubHeader';
+import CustomInput from '@/components/CustomInput';
+import PrimaryButton from '@/components/PrimaryButton';
+import { triggerNotificationHaptic } from '@/src/utils/haptics';
 
 export default function SecurityScreen() {
   const { user, purgeDatabase } = useAuthStore();
   const isGuest = user?.email?.includes('@local');
   const { colors, isDark } = useThemeColor();
-  // 🚀 2. Hook de insets
   const insets = useSafeAreaInsets();
 
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-
-  const [showOld, setShowOld] = useState(false);
-  const [showNew, setShowNew] = useState(false);
 
   const [loading, setLoading] = useState(false);
 
@@ -44,24 +42,42 @@ export default function SecurityScreen() {
     const newP = newPassword.trim();
     const confP = confirmPassword.trim();
 
-    if (!oldP || !newP || !confP) return Alert.alert('Erro', 'Preencha todos os campos.');
-    if (newP !== confP) return Alert.alert('Erro', 'As senhas não coincidem.');
+    if (!oldP || !newP || !confP) {
+      triggerNotificationHaptic(Haptics.NotificationFeedbackType.Warning);
+      return Alert.alert('Atenção', 'Preencha todos os campos.');
+    }
+    if (newP !== confP) {
+      triggerNotificationHaptic(Haptics.NotificationFeedbackType.Error);
+      return Alert.alert('Erro', 'As senhas não coincidem.');
+    }
 
     setLoading(true);
     try {
       // 🚀 Lógica real de update entraria aqui
-      Alert.alert('Sucesso', 'Sua senha foi atualizada!');
+      // Ex: await api.post('/users/change-password', { oldPassword: oldP, newPassword: newP });
+      
+      triggerNotificationHaptic(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Sucesso', 'Sua senha foi atualizada com segurança!');
+      
+      // Limpa os campos após sucesso
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      
     } catch {
-      Alert.alert('Erro', 'Falha ao atualizar senha.');
+      triggerNotificationHaptic(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Erro', 'Falha ao atualizar senha. Verifique sua senha atual.');
     } finally {
       setLoading(false);
     }
   }
 
   function handleDeleteAccount() {
+    triggerNotificationHaptic(Haptics.NotificationFeedbackType.Warning); // Vibração de alerta grave
+    
     Alert.alert(
       '⚠️ EXCLUIR CONTA',
-      'Esta ação removerá permanentemente todos os seus dados do servidor e deste dispositivo.',
+      'Esta ação removerá permanentemente todos os seus dados do servidor e deste dispositivo. Esta ação não pode ser desfeita.',
       [
         { text: 'Cancelar', style: 'cancel' },
         { 
@@ -82,6 +98,7 @@ export default function SecurityScreen() {
 
             } catch (error) {
               console.error("Erro ao excluir conta:", error);
+              triggerNotificationHaptic(Haptics.NotificationFeedbackType.Error);
               Alert.alert('Erro', 'Não foi possível excluir os dados no servidor. Verifique sua conexão.');
             } finally {
               setLoading(false);
@@ -92,37 +109,24 @@ export default function SecurityScreen() {
     );
   }
 
-  // Componente interno otimizado
-  const PasswordInput = ({ value, onChange, placeholder, show, onToggle }: any) => (
-    <View style={[styles.passwordWrapper, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
-      <TextInput 
-        style={[styles.passwordInput, { color: colors.text }]} 
-        secureTextEntry={!show} 
-        value={value} 
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={colors.textSub}
-      />
-      <TouchableOpacity onPress={onToggle} style={styles.eyeIcon} activeOpacity={0.7}>
-        <MaterialIcons name={show ? "visibility" : "visibility-off"} size={22} color={colors.textSub} />
-      </TouchableOpacity>
-    </View>
-  );
-
   return (
-    // 🚀 3. SafeAreaView focado no topo
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+    // 🚀 Trocamos SafeAreaView por View. O SubHeader já protege o topo!
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar 
+        barStyle={isDark ? "light-content" : "dark-content"} 
+        backgroundColor="transparent" 
+        translucent 
+      />
       
       <SubHeader title="Segurança" />
 
-      {/* 🚀 4. KeyboardAvoidingView protegendo o formulário de senhas */}
       <KeyboardAvoidingView 
         style={styles.keyboardView} 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0} // Compensa a altura do Header
       >
         <ScrollView 
-          // 🚀 5. Padding Bottom dinâmico
+          // 🚀 O insets.bottom protege a barra inferior (Home Indicator)
           contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom + 20, 40) }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -131,47 +135,41 @@ export default function SecurityScreen() {
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Alterar Senha</Text>
               
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.textSub }]}>Senha Atual</Text>
-                <PasswordInput 
-                  value={oldPassword} 
-                  onChange={setOldPassword} 
-                  placeholder="Sua senha atual" 
-                  show={showOld} 
-                  onToggle={() => setShowOld(!showOld)} 
-                />
-              </View>
+              <CustomInput
+                label="Senha Atual"
+                leftIcon="lock"
+                placeholder="Digite sua senha atual"
+                isPassword={true}
+                value={oldPassword}
+                onChangeText={setOldPassword}
+                containerStyle={{ marginBottom: 16 }}
+              />
               
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.textSub }]}>Nova Senha</Text>
-                <PasswordInput 
-                  value={newPassword} 
-                  onChange={setNewPassword} 
-                  placeholder="Mínimo 6 caracteres" 
-                  show={showNew} 
-                  onToggle={() => setShowNew(!showNew)} 
-                />
-              </View>
+              <CustomInput
+                label="Nova Senha"
+                leftIcon="lock-outline"
+                placeholder="Mínimo de 6 caracteres"
+                isPassword={true}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                containerStyle={{ marginBottom: 16 }}
+              />
 
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: colors.textSub }]}>Confirmar Nova Senha</Text>
-                <PasswordInput 
-                  value={confirmPassword} 
-                  onChange={setConfirmPassword} 
-                  placeholder="Repita a nova senha" 
-                  show={showNew} 
-                  onToggle={() => setShowNew(!showNew)} 
-                />
-              </View>
+              <CustomInput
+                label="Confirmar Nova Senha"
+                leftIcon="check-circle-outline"
+                placeholder="Repita a nova senha"
+                isPassword={true}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                containerStyle={{ marginBottom: 24 }}
+              />
 
-              <TouchableOpacity 
-                style={[styles.saveButton, { backgroundColor: colors.primary }]} 
+              <PrimaryButton 
+                title="Atualizar Senha" 
                 onPress={handleUpdatePassword}
-                disabled={loading}
-                activeOpacity={0.8}
-              >
-                {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveButtonText}>Atualizar Senha</Text>}
-              </TouchableOpacity>
+                isLoading={loading}
+              />
             </View>
           )}
 
@@ -179,8 +177,8 @@ export default function SecurityScreen() {
             styles.dangerZone, 
             { 
               marginTop: isGuest ? 0 : 40,
-              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#fff1f1', 
-              borderColor: isDark ? '#7f1d1d' : '#fecaca' 
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.08)' : '#fff1f1', 
+              borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : '#fecaca' 
             }
           ]}>
             <View style={styles.dangerHeader}>
@@ -188,20 +186,21 @@ export default function SecurityScreen() {
               <Text style={[styles.dangerTitle, { color: colors.danger }]}>Zona de Perigo</Text>
             </View>
             <Text style={[styles.dangerDesc, { color: isDark ? '#fca5a5' : '#7f1d1d' }]}>
-              Excluir a conta removerá permanentemente todos os dados financeiros salvos neste dispositivo.
+              Excluir a conta removerá permanentemente todos os dados financeiros salvos neste dispositivo e na nuvem.
             </Text>
-            <TouchableOpacity 
-              style={[styles.deleteButton, { backgroundColor: colors.card, borderColor: colors.danger }]} 
+            
+            <PrimaryButton 
+              title="Excluir todos os dados" 
+              variant="danger"
               onPress={handleDeleteAccount}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.deleteButtonText, { color: colors.danger }]}>Excluir todos os dados</Text>
-            </TouchableOpacity>
+              disabled={loading}
+              style={{ height: 48 }} 
+            />
           </View>
 
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -213,82 +212,37 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
-    // paddingBottom removido para inline
+    paddingHorizontal: 20,
+    paddingTop: 20,
   },
   section: {
     marginBottom: 10,
   },
   sectionTitle: { 
-    fontSize: 16, 
-    fontWeight: 'bold', 
-    marginBottom: 20 
-  },
-  inputGroup: { 
-    marginBottom: 16 
-  },
-  label: { 
-    fontSize: 14, 
-    fontWeight: '600', 
-    marginBottom: 8 
-  },
-  passwordWrapper: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    borderWidth: 1, 
-    borderRadius: 12,
-    overflow: 'hidden' 
-  },
-  passwordInput: { 
-    flex: 1, 
-    padding: 14, 
-    fontSize: 16 
-  },
-  eyeIcon: { 
-    padding: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  saveButton: { 
-    padding: 16, 
-    borderRadius: 12, 
-    alignItems: 'center', 
-    marginTop: 10,
-    elevation: 2, 
-  },
-  saveButtonText: { 
-    color: '#FFF', 
-    fontWeight: 'bold', 
-    fontSize: 16 
+    fontSize: 18, 
+    fontWeight: '900', 
+    marginBottom: 20,
+    letterSpacing: -0.5
   },
   dangerZone: { 
     padding: 20, 
-    borderRadius: 16, 
-    borderWidth: 1 
+    borderRadius: 20, 
+    borderWidth: 1.5, 
   },
   dangerHeader: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     gap: 8, 
-    marginBottom: 8 
+    marginBottom: 12 
   },
   dangerTitle: { 
     fontSize: 16, 
-    fontWeight: 'bold' 
+    fontWeight: '800' 
   },
   dangerDesc: { 
-    fontSize: 13, 
-    marginBottom: 16, 
-    lineHeight: 18 
+    fontSize: 14, 
+    marginBottom: 20, 
+    lineHeight: 20,
+    opacity: 0.9
   },
-  deleteButton: { 
-    borderWidth: 1, 
-    padding: 14, 
-    borderRadius: 12, 
-    alignItems: 'center' 
-  },
-  deleteButtonText: { 
-    fontWeight: 'bold',
-    fontSize: 14
-  }
 });

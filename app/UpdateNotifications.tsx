@@ -1,61 +1,60 @@
 import React from 'react';
 import { 
-  View, Text, StyleSheet, TouchableOpacity, StatusBar 
+  View, 
+  Text, 
+  StyleSheet, 
+  StatusBar 
 } from 'react-native';
-// 🚀 1. Importações da SafeArea
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+
 import { useThemeColor } from '@/hooks/useThemeColor';
 
+// 🚀 Componente Padronizado
 import SubHeader from '@/components/SubHeader';
 
 export default function NotificationsScreen() {
   const { colors, isDark } = useThemeColor();
-  // 🚀 2. Hook de insets
   const insets = useSafeAreaInsets();
-
-  // Constantes dinâmicas calculadas antes do return
+  
   const iconCircleBg = isDark ? 'rgba(23, 115, 207, 0.1)' : '#f0f9ff';
   const badgeBg = isDark ? '#334155' : '#f1f5f9';
 
   return (
-    // 🚀 3. SafeAreaView protegendo o topo
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar 
+        barStyle={isDark ? "light-content" : "dark-content"} 
+        backgroundColor="transparent" 
+        translucent 
+      />
       
-      <SubHeader title="Notificações" />
+      <SubHeader title="Notificações e Alertas" />
 
-      {/* 🚀 4. Padding bottom dinâmico na View centralizada */}
-      <View style={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}>
-        <View style={[styles.iconCircle, { backgroundColor: iconCircleBg }]}>
-            <MaterialIcons name="construction" size={60} color={colors.primary} />
-        </View>
-
-        <Text style={[styles.mainText, { color: colors.text }]}>
-          Em Desenvolvimento
-        </Text>
+      <View style={[styles.content, { paddingBottom: Math.max(insets.bottom, 20) }]}>
         
-        <Text style={[styles.subText, { color: colors.textSub }]}>
-          Estamos preparando uma central de alertas inteligente para você não perder nenhum vencimento ou meta.
-        </Text>
+        <View style={styles.comingSoonContainer}>
+          <View style={[styles.iconCircle, { backgroundColor: iconCircleBg }]}>
+              <MaterialIcons name="notifications-active" size={56} color={colors.primary} />
+          </View>
 
-        <View style={[styles.infoBadge, { backgroundColor: badgeBg }]}>
-            <MaterialIcons name="auto-awesome" size={16} color={colors.textSub} />
-            <Text style={[styles.badgeText, { color: colors.textSub }]}>
-              Disponível nas próximas atualizações
-            </Text>
+          <Text style={[styles.mainText, { color: colors.text }]}>
+            Em Desenvolvimento
+          </Text>
+          
+          <Text style={[styles.subText, { color: colors.textSub }]}>
+            Estamos preparando uma central de alertas inteligente para você não perder nenhum vencimento ou meta financeira.
+          </Text>
+
+          <View style={[styles.infoBadge, { backgroundColor: badgeBg }]}>
+              <MaterialIcons name="auto-awesome" size={16} color={colors.textSub} />
+              <Text style={[styles.badgeText, { color: colors.textSub }]}>
+                Disponível nas próximas atualizações
+              </Text>
+          </View>
         </View>
-
-        <TouchableOpacity 
-          style={[styles.button, { backgroundColor: colors.primary }]} 
-          onPress={() => router.back()}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.buttonText}>Voltar para o Início</Text>
-        </TouchableOpacity>
+        
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -65,30 +64,35 @@ const styles = StyleSheet.create({
   },
   content: { 
     flex: 1, 
+    paddingHorizontal: 24,
+    justifyContent: 'center',
+  },
+  comingSoonContainer: {
     alignItems: 'center', 
-    justifyContent: 'center', 
-    paddingHorizontal: 40,
-    // paddingBottom foi removido para o estilo inline
+    justifyContent: 'center',
+    marginTop: -40, // Compensa visualmente o header para parecer mais centralizado
   },
   iconCircle: {
-    width: 120, 
-    height: 120, 
-    borderRadius: 60,
+    width: 100, 
+    height: 100, 
+    borderRadius: 50,
     alignItems: 'center', 
     justifyContent: 'center',
     marginBottom: 24,
   },
   mainText: {
     fontSize: 22, 
-    fontWeight: 'bold', 
+    fontWeight: '900', 
     textAlign: 'center', 
-    marginBottom: 12
+    marginBottom: 12,
+    letterSpacing: -0.5,
   },
   subText: {
     fontSize: 15, 
     textAlign: 'center', 
     lineHeight: 22, 
-    marginBottom: 30
+    marginBottom: 24,
+    paddingHorizontal: 10,
   },
   infoBadge: {
     flexDirection: 'row', 
@@ -97,21 +101,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, 
     paddingVertical: 8, 
     borderRadius: 20,
-    marginBottom: 40
   },
   badgeText: { 
     fontSize: 12, 
-    fontWeight: '600' 
-  },
-  button: {
-    width: '100%',
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-  },
-  buttonText: {
-    color: '#FFF', 
-    fontSize: 16, 
-    fontWeight: 'bold'
+    fontWeight: '700' 
   }
 });

@@ -9,15 +9,16 @@ import {
   View,
   StatusBar
 } from 'react-native';
-// 🚀 1. Importações da SafeArea
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 
 // Banco de Dados e Stores
 import { database } from '../src/database';
 import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor'; 
+import { triggerHaptic, triggerSelectionHaptic, triggerNotificationHaptic } from '@/src/utils/haptics';
 
 // Componentes
 import SubHeader from '@/components/SubHeader'; 
@@ -30,7 +31,6 @@ export default function MyWalletsScreen() {
   const hideValues = useAuthStore(state => state.hideValues); 
   
   const { colors, isDark } = useThemeColor();
-  // 🚀 2. Hook das margens seguras
   const insets = useSafeAreaInsets();
   
   const [wallets, setWallets] = useState<any[]>([]);
@@ -60,13 +60,15 @@ export default function MyWalletsScreen() {
   }, [fetchWallets]));
 
   async function handleDelete(wallet: any) {
+    triggerNotificationHaptic(Haptics.NotificationFeedbackType.Warning);
+
     if (wallets.length <= 1) {
       return Alert.alert('Atenção', 'Você não pode excluir sua única carteira.');
     }
 
     Alert.alert(
       'Excluir Carteira',
-      `Tem certeza que deseja apagar "${wallet.name}"? Isso removerá permanentemente os dados desta carteira no dispositivo.`,
+      `Tem certeza que deseja apagar "${wallet.name}"? Isso removerá permanentemente os dados desta carteira.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         { 
@@ -87,9 +89,10 @@ export default function MyWalletsScreen() {
                 }
               }
               
+              triggerNotificationHaptic(Haptics.NotificationFeedbackType.Success);
               await fetchWallets();
-              Alert.alert('Sucesso', 'Carteira removida com sucesso.');
             } catch {
+              triggerNotificationHaptic(Haptics.NotificationFeedbackType.Error);
               Alert.alert('Erro', 'Não foi possível excluir a carteira.');
             }
           }
@@ -99,8 +102,14 @@ export default function MyWalletsScreen() {
   }
 
   function handleEdit(wallet: any) {
+    triggerSelectionHaptic();
     setSelectedWallet(wallet);
     setEditVisible(true);
+  }
+
+  function handleOpenCreate() {
+    triggerHaptic();
+    setCreateVisible(true);
   }
 
   if (loading && wallets.length === 0) {
@@ -113,18 +122,21 @@ export default function MyWalletsScreen() {
 
   const headerRightButton = (
     <TouchableOpacity 
-      onPress={() => setCreateVisible(true)} 
+      onPress={handleOpenCreate} 
       style={styles.addButton}
-      activeOpacity={0.7}
+      activeOpacity={0.6}
     >
-      <MaterialIcons name="add" size={28} color={colors.primary} />
+      <MaterialIcons name="add-circle" size={32} color={colors.primary} />
     </TouchableOpacity>
   );
 
   return (
-    // 🚀 3. Container Raiz trocado para SafeAreaView com foco no Topo
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar 
+        barStyle={isDark ? "light-content" : "dark-content"} 
+        backgroundColor="transparent"
+        translucent
+      />
 
       <SubHeader 
         title="Minhas Carteiras" 
@@ -134,8 +146,10 @@ export default function MyWalletsScreen() {
       <FlatList 
         data={wallets}
         keyExtractor={item => item.id}
-        // 🚀 4. Padding Bottom dinâmico
-        contentContainerStyle={[styles.list, { paddingBottom: Math.max(insets.bottom + 20, 40) }]}
+        contentContainerStyle={[
+          styles.list, 
+          { paddingBottom: Math.max(insets.bottom + 20, 40) }
+        ]}
         extraData={[user?.settings?.last_opened_wallet, hideValues]} 
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
@@ -148,20 +162,22 @@ export default function MyWalletsScreen() {
           
           const iconBoxBg = isActive 
             ? colors.primary 
-            : (isDark ? colors.background : '#eff6ff');
-
-          const actionBtnBg = isDark ? colors.background : '#f8fafc';
+            : (isDark ? 'rgba(255,255,255,0.05)' : '#eff6ff');
 
           return (
             <View style={[
                 styles.card, 
-                { backgroundColor: cardBg, borderColor: isActive ? colors.primary : colors.border }
+                { 
+                  backgroundColor: cardBg, 
+                  borderColor: isActive ? colors.primary : colors.border,
+                  borderWidth: isActive ? 1.5 : 1
+                }
             ]}>
               <View style={styles.cardInfo}>
                 <View style={[styles.iconBox, { backgroundColor: iconBoxBg }]}>
                   <MaterialIcons 
                     name="account-balance-wallet" 
-                    size={24} 
+                    size={22} 
                     color={isActive ? '#FFF' : colors.primary} 
                   />
                 </View>
@@ -172,10 +188,8 @@ export default function MyWalletsScreen() {
                         {item.name}
                     </Text>
                     {isActive && (
-                      <View style={[styles.activeBadge, { backgroundColor: isDark ? '#1e3a8a' : '#dbeafe' }]}>
-                        <Text style={[styles.activeBadgeText, { color: isDark ? '#93c5fd' : '#1e40af' }]}>
-                            Ativa
-                        </Text>
+                      <View style={[styles.activeBadge, { backgroundColor: colors.primary }]}>
+                        <Text style={styles.activeBadgeText}>Ativa</Text>
                       </View>
                     )}
                   </View>
@@ -191,15 +205,15 @@ export default function MyWalletsScreen() {
               <View style={styles.actions}>
                 <TouchableOpacity 
                     onPress={() => handleEdit(item)} 
-                    style={[styles.actionButton, { backgroundColor: actionBtnBg }]}
+                    style={[styles.actionButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc' }]}
                 >
-                  <MaterialIcons name="edit" size={20} color={colors.textSub} />
+                  <MaterialIcons name="edit" size={18} color={colors.textSub} />
                 </TouchableOpacity>
                 <TouchableOpacity 
                     onPress={() => handleDelete(item)} 
-                    style={[styles.actionButton, { backgroundColor: actionBtnBg }]}
+                    style={[styles.actionButton, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#fef2f2' }]}
                 >
-                  <MaterialIcons name="delete-outline" size={20} color={colors.danger} />
+                  <MaterialIcons name="delete-outline" size={18} color={colors.danger} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -207,6 +221,7 @@ export default function MyWalletsScreen() {
         }}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
+            <MaterialIcons name="account-balance-wallet" size={48} color={colors.border} />
             <Text style={[styles.emptyText, { color: colors.textSub }]}>Nenhuma carteira encontrada.</Text>
           </View>
         }
@@ -229,95 +244,52 @@ export default function MyWalletsScreen() {
           onSuccess={fetchWallets} 
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1 
-  },
-  center: { 
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
+  container: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   addButton: { 
     padding: 4,
-    alignItems: 'flex-end',
-    justifyContent: 'center'
+    marginRight: -4
   },
-  list: { 
-    padding: 20, 
-    // paddingBottom removido daqui e passado inline
-  },
+  list: { padding: 20 },
   card: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'space-between', 
-    padding: 16, 
-    borderRadius: 16, 
+    padding: 14, 
+    borderRadius: 18, 
     marginBottom: 12,
-    elevation: 2,
+    elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 2,
-    borderWidth: 1, 
   },
-  cardInfo: { 
-    flex: 1, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 12 
-  },
+  cardInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconBox: { 
-    width: 44, 
-    height: 44, 
+    width: 42, 
+    height: 42, 
     borderRadius: 12, 
     alignItems: 'center', 
     justifyContent: 'center' 
   },
-  textContainer: { 
-    flex: 1 
-  },
-  titleRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6, 
-    marginBottom: 2 
-  },
-  cardTitle: { 
-    fontSize: 15, 
-    fontWeight: '600', 
-    maxWidth: '70%' 
-  },
-  cardBalance: { 
-    fontSize: 13 
-  },
-  activeBadge: { 
-    paddingHorizontal: 6, 
-    paddingVertical: 2, 
-    borderRadius: 6 
-  },
-  activeBadgeText: { 
-    fontSize: 9, 
-    fontWeight: 'bold', 
-    textTransform: 'uppercase' 
-  },
-  actions: { 
-    flexDirection: 'row', 
-    gap: 8 
-  },
+  textContainer: { flex: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  cardTitle: { fontSize: 16, fontWeight: '700', letterSpacing: -0.3 },
+  cardBalance: { fontSize: 13, fontWeight: '500' },
+  activeBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  activeBadgeText: { fontSize: 9, fontWeight: '800', color: '#FFF', textTransform: 'uppercase' },
+  actions: { flexDirection: 'row', gap: 8 },
   actionButton: { 
-    padding: 8, 
-    borderRadius: 8 
+    padding: 10, 
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'transparent'
   },
-  emptyContainer: { 
-    alignItems: 'center', 
-    marginTop: 40 
-  },
-  emptyText: { 
-    fontSize: 14 
-  }
+  emptyContainer: { alignItems: 'center', marginTop: 80, gap: 12 },
+  emptyText: { fontSize: 15, fontWeight: '500' }
 });

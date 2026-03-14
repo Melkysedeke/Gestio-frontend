@@ -5,6 +5,7 @@ import * as SplashScreenNative from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 
 import { useAuthStore } from '../src/stores/authStore';
 import { useThemeStore } from '../src/stores/themeStore';
@@ -16,9 +17,10 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 GoogleSignin.configure({
   webClientId: '851200563468-g76lrcpv0dds5gd1ql47b5qju7jtpmf9.apps.googleusercontent.com',
+  iosClientId: 'com.googleusercontent.apps.851200563468-0ep8e2cuvo9jci6e81813u3gbvq41u3s', 
   offlineAccess: true,
+  forceCodeForRefreshToken: true, 
 });
-
 
 SplashScreenNative.preventAutoHideAsync();
 
@@ -27,13 +29,12 @@ export default function RootLayout() {
   const [isSyncingInitial, setIsSyncingInitial] = useState(false);
   const [splashAnimationFinished, setSplashAnimationFinished] = useState(false);
   
-  const { user, token, loadStorageData } = useAuthStore();
+  const { user, token, loadStorageData, hapticsEnabled } = useAuthStore();
   const _hasHydrated = useThemeStore(state => state._hasHydrated);
   
   const router = useRouter();
-  const { isDark } = useThemeColor();
+  const { colors, isDark } = useThemeColor();
   
-  // ✅ CORREÇÃO 1: Tipo tipado corretamente para React Native (ReturnType de setTimeout)
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [fontsLoaded] = useFonts({
@@ -54,7 +55,7 @@ export default function RootLayout() {
     prepare();
   }, [loadStorageData]);
 
-  // 2. Sincronização com Proteção de Tempo (Timeout)
+  // 2. Sincronização com Proteção de Tempo
   useEffect(() => {
     async function performInitialSync() {
       const isGuest = user?.email?.includes('@local');
@@ -62,18 +63,21 @@ export default function RootLayout() {
       if (appIsReady && user && token && !isGuest) {
         setIsSyncingInitial(true);
 
-        const timeout = setTimeout(() => {
+        syncTimeoutRef.current = setTimeout(() => {
           setIsSyncingInitial(false);
           console.log("⏳ Sync demorando... liberando modo offline.");
         }, 8000);
 
         try {
           await syncData();
+          if (hapticsEnabled) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }
         } catch (error) {
           console.log("Sync inicial falhou, entrando em modo offline.", error);
         } finally {
           setIsSyncingInitial(false);
-          clearTimeout(timeout);
+          if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
         }
       }
     }
@@ -83,22 +87,19 @@ export default function RootLayout() {
     return () => {
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     };
-  }, [appIsReady, user, token]);
+  }, [appIsReady, user, token, hapticsEnabled]);
 
-  // 3. Lógica de Redirecionamento Centralizada
+  // 3. Redirecionamento Centralizado
   useEffect(() => {
     const canNavigate = appIsReady && fontsLoaded && _hasHydrated && splashAnimationFinished;
     
-    if (canNavigate) {
-      if (!isSyncingInitial) {
-        if (user) {
-          router.replace('/(tabs)');
-        } else {
-          router.replace('/Welcome'); 
-        }
+    if (canNavigate && !isSyncingInitial) {
+      if (user) {
+        router.replace('/(tabs)');
+      } else {
+        router.replace('/Welcome'); 
       }
     }
-    // ✅ CORREÇÃO 6: Adicionado router nas dependências
   }, [appIsReady, fontsLoaded, _hasHydrated, splashAnimationFinished, user, isSyncingInitial, router]);
 
   const onLayoutRootView = useCallback(async () => {
@@ -140,8 +141,8 @@ export default function RootLayout() {
               />
             ) : (
               <View style={styles.syncContainer}>
-                <ActivityIndicator size="large" color={isDark ? '#38BDF8' : '#1773CF'} />
-                <Text style={[styles.syncText, { color: isDark ? '#A0AEC0' : '#4A5568' }]}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={[styles.syncText, { color: colors.textSub }]}>
                   Sincronizando seus dados...
                 </Text>
               </View>
@@ -155,6 +156,17 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  syncContainer: { alignItems: 'center', gap: 15 },
-  syncText: { fontSize: 15, fontWeight: '600', letterSpacing: 0.3 }
+  syncContainer: { 
+    alignItems: 'center', 
+    gap: 16,
+    paddingHorizontal: 40 
+  },
+  syncText: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    opacity: 0.8
+  }
 });

@@ -9,12 +9,13 @@ import {
   Linking, 
   Platform 
 } from 'react-native';
-// 🚀 1. Importações do SafeAreaView
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useAuthStore } from '../src/stores/authStore';
 
+// 🚀 Utilitários Padronizados
+import { triggerHaptic, triggerSelectionHaptic } from '@/src/utils/haptics';
 import SubHeader from '@/components/SubHeader'; 
 
 const FAQ_ITEMS = [
@@ -40,18 +41,19 @@ export default function HelpScreen() {
   const user = useAuthStore(state => state.user);
   const isGuest = user?.email?.includes('@local');
   const { colors, isDark } = useThemeColor();
-  // 🚀 2. Instanciando o insets
   const insets = useSafeAreaInsets();
 
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
   const toggleExpand = (index: number) => {
+    triggerSelectionHaptic(); // Feedback ao expandir FAQ
     setExpandedIndex(expandedIndex === index ? null : index);
   };
 
   const handleContact = (type: 'whatsapp' | 'email') => {
+    triggerHaptic(); // Feedback ao iniciar contato externo
     if (type === 'email') {
-      Linking.openURL('mailto:suporte@gestio.com?subject=Ajuda Gestio');
+      Linking.openURL('mailto:melkybahia88@gmail.com?subject=Ajuda Gestio');
     } else {
       Linking.openURL('https://wa.me/5571982903278');
     }
@@ -61,21 +63,23 @@ export default function HelpScreen() {
   const faqBodyBg = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)';
 
   return (
-    // 🚀 3. SafeAreaView envolvendo a tela para proteger o SubHeader do topo
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar 
+        barStyle={isDark ? "light-content" : "dark-content"} 
+        backgroundColor="transparent" 
+        translucent 
+      />
 
       <SubHeader title="Ajuda e Suporte" />
 
       <ScrollView 
-        // 🚀 4. Padding bottom dinâmico para a assinatura final e a barra inferior do OS
         contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom + 20, 40) }]} 
         showsVerticalScrollIndicator={false}
       >
         
         {/* AVISO MODO CONVIDADO */}
         {isGuest && (
-          <View style={[styles.guestWarning, { backgroundColor: guestWarningBg, borderColor: colors.primary }]}>
+          <View style={[styles.guestWarning, { backgroundColor: guestWarningBg, borderColor: isDark ? colors.primary : '#bae6fd' }]}>
             <MaterialIcons name="cloud-off" size={20} color={colors.primary} />
             <Text style={[styles.guestWarningText, { color: colors.text }]}>
               Você está usando uma <Text style={styles.bold}>Conta Local</Text>. O suporte técnico pode ter limitações para acessar seus registros.
@@ -91,7 +95,9 @@ export default function HelpScreen() {
             onPress={() => handleContact('whatsapp')}
             activeOpacity={0.7}
           >
-             <MaterialIcons name="chat" size={28} color="#0bda5b" />
+             <View style={[styles.iconCircle, { backgroundColor: isDark ? 'rgba(11, 218, 91, 0.1)' : '#ecfdf5' }]}>
+                <MaterialIcons name="chat" size={26} color="#0bda5b" />
+             </View>
              <Text style={[styles.contactText, { color: colors.text }]}>WhatsApp</Text>
           </TouchableOpacity>
 
@@ -100,12 +106,14 @@ export default function HelpScreen() {
             onPress={() => handleContact('email')}
             activeOpacity={0.7}
           >
-             <MaterialIcons name="email" size={28} color={colors.primary} />
+             <View style={[styles.iconCircle, { backgroundColor: isDark ? 'rgba(23, 115, 207, 0.1)' : '#f0f9ff' }]}>
+                <MaterialIcons name="email" size={26} color={colors.primary} />
+             </View>
              <Text style={[styles.contactText, { color: colors.text }]}>E-mail</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.sectionTitle, { color: colors.textSub, marginTop: 24 }]}>Perguntas Frequentes</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textSub, marginTop: 12 }]}>Perguntas Frequentes</Text>
         
         <View style={styles.faqContainer}>
           {FAQ_ITEMS.map((item, index) => {
@@ -139,41 +147,31 @@ export default function HelpScreen() {
         </View>
 
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1 
-  },
-  scrollContent: { 
-    padding: 20,
-    // paddingBottom estático foi removido para usar a fórmula inline com insets
-  },
+  container: { flex: 1 },
+  scrollContent: { padding: 20 },
   sectionTitle: { 
-    fontSize: 14, 
-    fontWeight: '700', 
+    fontSize: 12, 
+    fontWeight: '800', 
     textTransform: 'uppercase', 
-    marginBottom: 12 
+    marginBottom: 16,
+    letterSpacing: 1
   },
   guestWarning: {
     flexDirection: 'row',
-    padding: 15,
-    borderRadius: 12,
+    padding: 16,
+    borderRadius: 16,
     borderWidth: 1,
     gap: 12,
     marginBottom: 24,
     alignItems: 'center'
   },
-  bold: {
-    fontWeight: 'bold'
-  },
-  guestWarningText: { 
-    fontSize: 13, 
-    flex: 1, 
-    lineHeight: 18 
-  },
+  bold: { fontWeight: 'bold' },
+  guestWarningText: { fontSize: 13, flex: 1, lineHeight: 18, fontWeight: '500' },
   contactRow: { 
     flexDirection: 'row', 
     gap: 12,
@@ -181,55 +179,36 @@ const styles = StyleSheet.create({
   },
   contactCard: {
     flex: 1, 
-    padding: 20, 
-    borderRadius: 16, 
+    padding: 16, 
+    borderRadius: 20, 
     borderWidth: 1,
     alignItems: 'center', 
     justifyContent: 'center', 
-    gap: 8,
+    gap: 10,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 3 },
-      android: { elevation: 2 },
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4 },
+      android: { elevation: 1 },
     }),
   },
-  contactText: { 
-    fontWeight: '600', 
-    fontSize: 14 
+  iconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
-  faqContainer: { 
-    gap: 8 
-  },
-  faqItem: { 
-    borderRadius: 12, 
-    borderWidth: 1, 
-    overflow: 'hidden' 
-  },
+  contactText: { fontWeight: '700', fontSize: 14 },
+  faqContainer: { gap: 10 },
+  faqItem: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
   faqHeader: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
     alignItems: 'center', 
-    padding: 16 
+    padding: 18 
   },
-  faqQuestion: { 
-    fontSize: 15, 
-    fontWeight: '600', 
-    flex: 1, 
-    paddingRight: 10 
-  },
-  faqBody: { 
-    padding: 16, 
-    borderTopWidth: 1 
-  },
-  faqAnswer: { 
-    fontSize: 14, 
-    lineHeight: 20 
-  },
-  footer: { 
-    alignItems: 'center', 
-    marginTop: 40, 
-    marginBottom: 20 
-  },
-  versionText: { 
-    fontSize: 12 
-  }
+  faqQuestion: { fontSize: 15, fontWeight: '700', flex: 1, paddingRight: 10 },
+  faqBody: { padding: 18, borderTopWidth: 1 },
+  faqAnswer: { fontSize: 14, lineHeight: 22, fontWeight: '400' },
+  footer: { alignItems: 'center', marginTop: 40, marginBottom: 10 },
+  versionText: { fontSize: 11, fontWeight: '600' }
 });

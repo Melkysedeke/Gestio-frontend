@@ -11,6 +11,16 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.gestio",
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "gestio",
+              "com.googleusercontent.apps.851200563468-0ep8e2cuvo9jci6e81813u3gbvq41u3s"
+            ]
+          }
+        ]
+      },
       "icon": {
         "light": "./assets/images/icon.png",
         "dark": "./assets/images/icon-dark.png",
@@ -60,7 +70,12 @@
           }
         }
       ],
-      "@react-native-google-signin/google-signin"
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.851200563468-0ep8e2cuvo9jci6e81813u3gbvq41u3s"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
