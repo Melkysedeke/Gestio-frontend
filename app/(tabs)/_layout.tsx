@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Tabs, usePathname } from 'expo-router'; 
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,7 +17,6 @@ export default function TabLayout() {
   const { colors } = useThemeColor();
   const insets = useSafeAreaInsets(); 
 
-  // 🚀 CORREÇÃO 1: Forçar minúsculo para a checagem funcionar e tratar o index (vazio)
   const lastSegment = pathname.split('/').pop()?.toLowerCase() || 'index';
   const currentTabName = lastSegment === '' ? 'index' : lastSegment;
   
@@ -25,10 +24,8 @@ export default function TabLayout() {
   const sheetContext = validContexts.includes(currentTabName) 
       ? (currentTabName as 'index' | 'transactions' | 'debts' | 'goals') 
       : 'index';
-
-  // Cálculos dinâmicos
-  const TAB_BAR_BASE_HEIGHT = 60; 
-  const bottomPadding = insets.bottom > 0 ? insets.bottom : 10; 
+  const TAB_BAR_BASE_HEIGHT = 65; 
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 16 : 0);
 
   return (
     <>
@@ -51,13 +48,14 @@ export default function TabLayout() {
             elevation: 0,
             shadowOpacity: 0,
             height: TAB_BAR_BASE_HEIGHT + bottomPadding,
-            paddingBottom: bottomPadding, 
-            paddingTop: 10,
+            paddingBottom: bottomPadding + 4, 
+            paddingTop: 8, 
           },
           tabBarLabelStyle: { 
             fontSize: 10, 
             fontWeight: '600', 
-            marginTop: 4 
+            marginTop: 2, // Aproxima o texto do ícone
+            marginBottom: Platform.OS === 'android' ? 4 : 0, // Micro respiro extra no Android
           }
         }}
       >
@@ -81,7 +79,6 @@ export default function TabLayout() {
           name="Add"
           options={{
             title: '',
-            // 🚀 REMOVE O href: null DAQUI
             tabBarIcon: () => null,
             tabBarButton: (props) => (
               <CustomTabBarButton
@@ -92,12 +89,6 @@ export default function TabLayout() {
               />
             )
           }}
-          listeners={() => ({
-            tabPress: (e) => {
-              e.preventDefault(); // Impede de tentar navegar para a tela fantasma
-              setActionSheetVisible(true);
-            },
-          })}
         />
 
         <Tabs.Screen
@@ -126,10 +117,10 @@ export default function TabLayout() {
   );
 }
 
-// Componente do Botão Central (Mantido igual)
-const CustomTabBarButton = ({ onPress, borderColor, buttonColor }: any) => (
+const CustomTabBarButton = ({ onPress, borderColor, buttonColor, style, ...props }: any) => (
   <TouchableOpacity
-    style={styles.customButtonContainer}
+    {...props} 
+    style={[style, styles.customButtonContainer]} 
     onPress={onPress}
     activeOpacity={0.8}
   >
@@ -144,14 +135,14 @@ const CustomTabBarButton = ({ onPress, borderColor, buttonColor }: any) => (
 
 const styles = StyleSheet.create({
   customButtonContainer: {
-    top: -30,
+    top: -20,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
   },
   customButton: {
-    width: 56, 
-    height: 56, 
+    width: 60, 
+    height: 60, 
     borderRadius: 28, 
     alignItems: 'center', 
     justifyContent: 'center', 

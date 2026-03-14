@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, 
-  KeyboardAvoidingView, Platform, ScrollView, Image, StatusBar 
+  KeyboardAvoidingView, Platform, ScrollView, Image, StatusBar, Keyboard 
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { useAuthActions } from '@/hooks/useAuthActions'; // 🚀 Lógica externalizada
+import { useAuthActions } from '@/hooks/useAuthActions'; 
 
 // Componentes Reutilizáveis
 import SubHeader from '@/components/SubHeader';
@@ -22,12 +22,10 @@ export default function LoginScreen() {
   const { colors, isDark } = useThemeColor(); 
   const insets = useSafeAreaInsets();
   
-  // States da UI
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isModalVisible, setIsModalVisible] = useState(false);
 
-  // 🚀 Funções e estados importados do Hook
   const { 
     handleEmailLogin, 
     handleGoogleLogin, 
@@ -37,6 +35,9 @@ export default function LoginScreen() {
     isGuestLoading, 
     isAnyLoading 
   } = useAuthActions();
+
+  // 🚀 A mágica acontece aqui: desativamos o behavior do iOS na tela pai se o modal estiver aberto.
+  const keyboardBehavior = Platform.OS === 'ios' ? (isModalVisible ? undefined : 'padding') : undefined;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -51,7 +52,7 @@ export default function LoginScreen() {
       </Animated.View>
 
       <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+        behavior={keyboardBehavior} 
         style={{ flex: 1 }}
       >
         <ScrollView 
@@ -94,10 +95,13 @@ export default function LoginScreen() {
                 />
                 <TouchableOpacity 
                   style={styles.forgotButton} 
-                  onPress={() => setIsModalVisible(true)}
+                  onPress={() => {
+                    Keyboard.dismiss(); // 👈 Adicione isso! Oculta o teclado de Login antes de abrir o Modal
+                    setIsModalVisible(true);
+                  }}
                   activeOpacity={0.7}
                   disabled={isAnyLoading}
-                >
+>
                   <Text style={[styles.forgotText, { color: colors.primary }]}>Esqueceu a senha?</Text>
                 </TouchableOpacity>
               </View>

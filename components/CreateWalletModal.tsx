@@ -1,16 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
   Modal, 
   StyleSheet, 
   TouchableOpacity, 
-  ActivityIndicator,
   Alert,
   TouchableWithoutFeedback,
   Keyboard,
-  KeyboardAvoidingView,
-  Platform 
+  Platform,
+  Animated as RNAnimated // 🚀 Importado explicitamente
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,7 +19,7 @@ import { database } from '../src/database';
 import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
-// 🚀 Nossos componentes globais e utilitários
+// Componentes globais e utilitários
 import CustomInput from './CustomInput';
 import PrimaryButton from './PrimaryButton';
 import { triggerHaptic, triggerNotificationHaptic } from '@/src/utils/haptics';
@@ -40,6 +39,35 @@ export default function CreateWalletModal({ visible, onClose, onSuccess }: Props
 
   const { colors, isDark } = useThemeColor();
   const insets = useSafeAreaInsets();
+
+  // 🚀 1. Motor de Animação do Teclado
+  const keyboardPadding = useRef(new RNAnimated.Value(0)).current;
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      RNAnimated.timing(keyboardPadding, {
+        toValue: e.endCoordinates.height,
+        duration: 250,
+        useNativeDriver: false, // 🚀 Atualiza fisicamente o layout para empurrar as coisas no Android
+      }).start();
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      RNAnimated.timing(keyboardPadding, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (visible) {
@@ -100,60 +128,65 @@ export default function CreateWalletModal({ visible, onClose, onSuccess }: Props
       visible={visible}
       onRequestClose={handleClose}
     >
-      <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); handleClose(); }}>
-        <View style={styles.overlay}>
+      <View style={styles.overlay}>
+        
+        {/* Fundo clicável para fechar o Modal */}
+        <TouchableWithoutFeedback onPress={handleClose}>
+          <View style={StyleSheet.absoluteFill} />
+        </TouchableWithoutFeedback>
+
+        {/* 🚀 2. Container Animado que empurra o conteúdo para cima */}
+        <RNAnimated.View style={{ paddingBottom: keyboardPadding, width: '100%' }}>
           
-          {/* O KeyboardAvoidingView garante que o botão não seja coberto */}
-          <KeyboardAvoidingView 
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
-            style={{ width: '100%' }}
-          >
+          <View style={[
+              styles.modalContent, 
+              { 
+                backgroundColor: colors.card,
+                paddingBottom: Math.max(insets.bottom + 20, 24) 
+              }
+            ]}>
+            
+            {/* O clique interno fecha o teclado, mas preserva o Modal aberto */}
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <View style={[
-                  styles.modalContent, 
-                  { 
-                    backgroundColor: colors.card,
-                    // Respeita o botão home do iPhone ou botões on-screen do Android
-                    paddingBottom: Math.max(insets.bottom + 20, 24) 
-                  }
-                ]}>
-                  
-                  {/* Tracinho de arraste */}
-                  <View style={[styles.handleBar, { backgroundColor: colors.border }]} />
-                  
-                  <View style={styles.header}>
-                      <Text style={[styles.title, { color: colors.text }]}>Nova Carteira</Text>
-                      <TouchableOpacity onPress={handleClose} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                         <View style={[styles.closeIconBg, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }]}>
-                           <MaterialIcons name="close" size={20} color={colors.textSub} />
-                         </View>
-                      </TouchableOpacity>
-                  </View>
+              <View>
+                
+                {/* Tracinho de arraste */}
+                <View style={[styles.handleBar, { backgroundColor: colors.border }]} />
+                
+                <View style={styles.header}>
+                    <Text style={[styles.title, { color: colors.text }]}>Nova Carteira</Text>
+                    <TouchableOpacity onPress={handleClose} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                        <View style={[styles.closeIconBg, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }]}>
+                          <MaterialIcons name="close" size={20} color={colors.textSub} />
+                        </View>
+                    </TouchableOpacity>
+                </View>
 
-                  <CustomInput
-                    label="Nome da Carteira"
-                    leftIcon="account-balance-wallet"
-                    placeholder="Ex: Nubank, Física, Investimentos..."
-                    value={name}
-                    onChangeText={setName}
-                    autoFocus={true}
-                    returnKeyType="done"
-                    onSubmitEditing={handleCreate}
-                  />
+                {/* 🚀 Adicionamos autoFocus=false no Android para o teclado não saltar assim que abre. Se quiser pular etapas, pode manter true */}
+                <CustomInput
+                  label="Nome da Carteira"
+                  leftIcon="account-balance-wallet"
+                  placeholder="Ex: Nubank, Física, Investimentos..."
+                  value={name}
+                  onChangeText={setName}
+                  autoFocus={Platform.OS === 'ios'} 
+                  returnKeyType="done"
+                  onSubmitEditing={handleCreate}
+                />
 
-                  <PrimaryButton
-                    title="Criar Carteira"
-                    onPress={handleCreate}
-                    isLoading={loading}
-                    style={{ marginTop: 24 }}
-                  />
+                <PrimaryButton
+                  title="Criar Carteira"
+                  onPress={handleCreate}
+                  isLoading={loading}
+                  style={{ marginTop: 24 }}
+                />
 
               </View>
             </TouchableWithoutFeedback>
-          </KeyboardAvoidingView>
+          </View>
           
-        </View>
-      </TouchableWithoutFeedback>
+        </RNAnimated.View>
+      </View>
     </Modal>
   );
 }

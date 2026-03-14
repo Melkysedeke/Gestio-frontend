@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, Text, Modal, StyleSheet, TouchableOpacity, 
-  Alert, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard 
+  Alert, Platform, TouchableWithoutFeedback, Keyboard, Animated as RNAnimated
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { database } from '../src/database';
@@ -29,8 +30,39 @@ interface Props {
 
 export default function EditWalletModal({ visible, wallet, onClose, onSuccess }: Props) {
   const { colors, isDark } = useThemeColor();
+  const insets = useSafeAreaInsets();
+  
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // 🚀 Motor de Animação do Teclado (O padrão infalível do app)
+  const keyboardPadding = useRef(new RNAnimated.Value(0)).current;
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      RNAnimated.timing(keyboardPadding, {
+        toValue: e.endCoordinates.height,
+        duration: 250,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      RNAnimated.timing(keyboardPadding, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: false,
+      }).start();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Preenche o nome atual quando o modal abre
   useEffect(() => {
@@ -41,7 +73,7 @@ export default function EditWalletModal({ visible, wallet, onClose, onSuccess }:
 
   const handleClose = () => {
     triggerHaptic();
-    Keyboard.dismiss(); // 🚀 Garante que o teclado feche antes de desmontar o modal
+    Keyboard.dismiss();
     onClose();
   };
 
@@ -52,9 +84,9 @@ export default function EditWalletModal({ visible, wallet, onClose, onSuccess }:
     }
 
     setLoading(true);
+    Keyboard.dismiss(); // Fecha o teclado antes de salvar para a animação ser limpa
+
     try {
-      // 🚀 Atualizando no WatermelonDB em vez de chamar a API direta.
-      // Isso deixa o app super rápido e offline-first.
       await database.write(async () => {
         const walletRecord = await database.get<WalletModel>('wallets').find(wallet.id);
         await walletRecord.update((w: any) => {
@@ -64,7 +96,7 @@ export default function EditWalletModal({ visible, wallet, onClose, onSuccess }:
 
       triggerNotificationHaptic(Haptics.NotificationFeedbackType.Success);
       onSuccess();
-      handleClose();
+      handleClose(); // handleClose já chama o onClose()
     } catch (error) {
       console.error("Erro ao atualizar carteira:", error);
       triggerNotificationHaptic(Haptics.NotificationFeedbackType.Error);
@@ -75,31 +107,43 @@ export default function EditWalletModal({ visible, wallet, onClose, onSuccess }:
   }
 
   return (
-    <Modal animationType="fade" transparent={true} visible={visible} onRequestClose={handleClose}>
-      {/* Clique fora do modal fecha o teclado/modal */}
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.modalOverlay}>
+    <Modal 
+      animationType="slide" // 🚀 Mudamos de fade para slide para combinar com o BottomSheet
+      transparent={true} 
+      visible={visible} 
+      onRequestClose={handleClose}
+    >
+      <View style={styles.modalOverlay}>
+        
+        {/* Fundo clicável escuro */}
+        <TouchableWithoutFeedback onPress={handleClose}>
+          <View style={StyleSheet.absoluteFill} />
+        </TouchableWithoutFeedback>
+
+        {/* 🚀 Container Animado do Teclado */}
+        <RNAnimated.View style={{ paddingBottom: keyboardPadding, width: '100%' }}>
           
-          {/* 🚀 O KeyboardAvoidingView envelopa apenas o form, evitando o gap inferior */}
-          <KeyboardAvoidingView 
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
-            style={styles.keyboardContainer}
-          >
-            <TouchableWithoutFeedback>
-              <View style={[
-                styles.modalContent, 
-                { 
-                  backgroundColor: colors.card, 
-                  borderColor: colors.border,
-                  borderWidth: isDark ? 1 : 0 
-                }
-              ]}>
+          <View style={[
+            styles.modalContent, 
+            { 
+              backgroundColor: colors.card, 
+              paddingBottom: Math.max(insets.bottom + 20, 24) 
+            }
+          ]}>
+            
+            {/* O clique interno fecha o teclado, mas mantém o Modal */}
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View>
+                
+                {/* Tracinho de arraste padronizado */}
+                <View style={[styles.handleBar, { backgroundColor: colors.border }]} />
                 
                 {/* Header */}
                 <View style={styles.header}>
                   <Text style={[styles.title, { color: colors.text }]}>Editar Carteira</Text>
                   <TouchableOpacity 
                     onPress={handleClose} 
+                    style={styles.closeBtn}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     <View style={[styles.closeIconBg, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }]}>
@@ -115,22 +159,24 @@ export default function EditWalletModal({ visible, wallet, onClose, onSuccess }:
                   placeholder="Ex: Nubank, Inter, Dinheiro..."
                   value={name}
                   onChangeText={setName}
-                  autoFocus={true}
+                  autoFocus={Platform.OS === 'ios'} // Android se sai melhor sem autoFocus imediato
+                  returnKeyType="done"
+                  onSubmitEditing={handleSave}
                 />
 
                 <PrimaryButton
                   title="Salvar Alterações"
                   onPress={handleSave}
                   isLoading={loading}
-                  style={{ marginTop: 12 }}
+                  style={{ marginTop: 24 }} // Maior respiro como no CreateWallet
                 />
                 
               </View>
             </TouchableWithoutFeedback>
-          </KeyboardAvoidingView>
-
-        </View>
-      </TouchableWithoutFeedback>
+          </View>
+          
+        </RNAnimated.View>
+      </View>
     </Modal>
   );
 }
@@ -139,33 +185,39 @@ const styles = StyleSheet.create({
   modalOverlay: { 
     flex: 1, 
     backgroundColor: 'rgba(0,0,0,0.5)', 
-    justifyContent: 'center', 
-    padding: 24 
-  },
-  keyboardContainer: {
-    width: '100%',
-    justifyContent: 'center',
+    justifyContent: 'flex-end', // 🚀 Agora fica na base da tela
   },
   modalContent: { 
-    borderRadius: 28, 
-    padding: 24, 
-    // Sombras premium
+    borderTopLeftRadius: 32, 
+    borderTopRightRadius: 32, 
+    paddingHorizontal: 24, 
+    paddingTop: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowRadius: 10,
+    elevation: 20,
+  },
+  handleBar: {
+    width: 48,
+    height: 5,
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginBottom: 20,
   },
   header: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 
     alignItems: 'center',
-    marginBottom: 20 
+    marginBottom: 24 
   },
   title: { 
-    fontSize: 20, 
-    fontWeight: '800',
+    fontSize: 22, 
+    fontWeight: '900',
     letterSpacing: -0.5 
+  },
+  closeBtn: {
+    padding: 4,
   },
   closeIconBg: {
     width: 32,

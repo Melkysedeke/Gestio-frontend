@@ -1,14 +1,13 @@
 import React from 'react';
 import { 
   View, Text, Modal, StyleSheet, TouchableOpacity, 
-  TouchableWithoutFeedback, Dimensions 
+  TouchableWithoutFeedback, Platform, Dimensions 
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
-// 🚀 Importando utilitário de haptics
 import { triggerHaptic, triggerSelectionHaptic } from '@/src/utils/haptics';
 
 export type SheetContext = 'index' | 'transactions' | 'debts' | 'goals';
@@ -20,7 +19,6 @@ interface Props {
 }
 
 const { width } = Dimensions.get('window');
-const BUTTON_WIDTH = (width - 40 - 12) / 2; 
 
 export default function ActionSheet({ visible, context, onClose }: Props) {
   const router = useRouter();
@@ -28,232 +26,105 @@ export default function ActionSheet({ visible, context, onClose }: Props) {
   const insets = useSafeAreaInsets();
 
   const handleNavigate = (route: string) => {
-    triggerSelectionHaptic(); // 🚀 Feedback na hora de escolher a ação
+    triggerSelectionHaptic();
     onClose();
-    
-    // Pequeno atraso para a animação do modal não engasgar a navegação
     setTimeout(() => {
         router.push(route as any);
-    }, 200);
+    }, Platform.OS === 'ios' ? 10 : 150);
   };
 
   const handleClose = () => {
-    triggerHaptic(); // 🚀 Feedback ao fechar/cancelar
+    triggerHaptic();
     onClose();
   };
 
-  const getTitle = () => {
-    switch (context) {
-        case 'debts': return 'Nova Pendência';
-        case 'goals': return 'Novo Objetivo';
-        case 'transactions': return 'Nova Transação';
-        default: return 'O que deseja adicionar?';
-    }
-  };
-
-  const buttonStyle = {
-    backgroundColor: colors.card,
-    borderColor: colors.border
-  };
-
-  // --- COMPONENTES DOS BOTÕES ---
-
-  const TransactionButtons = () => (
-    <>
-      <TouchableOpacity 
-        style={[styles.squareButton, buttonStyle]} 
-        onPress={() => handleNavigate('/AddTransaction?type=expense')}
-        activeOpacity={0.7}
-      >
-        <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(250, 98, 56, 0.15)' : '#fef2f2' }]}>
-          <MaterialIcons name="money-off" size={28} color="#fa6238" />
-        </View>
-        <Text style={[styles.actionLabel, { color: colors.text }]}>Despesa</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity 
-        style={[styles.squareButton, buttonStyle]} 
-        onPress={() => handleNavigate('/AddTransaction?type=income')}
-        activeOpacity={0.7}
-      >
-        <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(11, 218, 91, 0.15)' : '#ecfdf5' }]}>
-          <MaterialIcons name="attach-money" size={28} color="#0bda5b" />
-        </View>
-        <Text style={[styles.actionLabel, { color: colors.text }]}>Receita</Text>
-      </TouchableOpacity>
-    </>
-  );
-
-  const DebtButtons = () => (
-    <>
-      <TouchableOpacity 
-        style={[styles.squareButton, buttonStyle]} 
-        onPress={() => handleNavigate('/AddDebt?type=debt')}
-        activeOpacity={0.7}
-      >
-        <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(234, 88, 12, 0.15)' : '#fff7ed' }]}>
-          <MaterialIcons name="remove-circle-outline" size={28} color="#ea580c" />
-        </View>
-        <Text style={[styles.actionLabel, { color: colors.text }]}>Dívida</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity 
-        style={[styles.squareButton, buttonStyle]} 
-        onPress={() => handleNavigate('/AddDebt?type=loan')}
-        activeOpacity={0.7}
-      >
-        <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(23, 115, 207, 0.15)' : '#eff6ff' }]}>
-          <MaterialIcons name="add-circle-outline" size={28} color="#1773cf" />
-        </View>
-        <Text style={[styles.actionLabel, { color: colors.text }]}>Empréstimo</Text>
-      </TouchableOpacity>
-    </>
-  );
-
-  const GoalButton = () => (
-    // 🚀 Corrigido o erro de sintaxe do JSX no retorno do botão
+  const ActionItem = ({ icon, label, color, route, bg }: any) => (
     <TouchableOpacity 
-        style={[styles.fullWidthButton, buttonStyle]} 
-        onPress={() => handleNavigate('/AddGoal')} 
-        activeOpacity={0.7}
+      style={styles.actionItem} 
+      onPress={() => handleNavigate(route)}
+      activeOpacity={0.6}
     >
-      <View style={[styles.iconBoxSmall, { backgroundColor: isDark ? 'rgba(217, 70, 239, 0.15)' : '#fdf4ff' }]}>
-          <MaterialIcons name="flag" size={24} color="#d946ef" />
+      <View style={[styles.iconCircle, { backgroundColor: bg }]}>
+        <MaterialIcons name={icon} size={22} color={color} />
       </View>
-      <Text style={[styles.actionLabelRow, { color: colors.text }]}>Criar Novo Objetivo</Text>
-      <MaterialIcons name="chevron-right" size={20} color={colors.textSub} style={{ marginLeft: 'auto' }} />
+      <Text style={[styles.actionLabel, { color: colors.text }]} numberOfLines={1}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 
   return (
-    <Modal
-      animationType="slide" // Slide dá uma sensação nativa melhor para Bottom Sheets
-      transparent={true}
-      visible={visible}
-      onRequestClose={handleClose}
-      statusBarTranslucent
-    >
-      <TouchableWithoutFeedback onPress={handleClose}>
-        <View style={styles.overlay}>
-          <TouchableWithoutFeedback>
-            <View style={[
-                styles.sheet, 
-                { 
-                  backgroundColor: colors.card,
-                  paddingBottom: Math.max(insets.bottom + 20, 32)
-                }
-              ]}>
-              
-              <View style={styles.handleContainer}>
-                  <View style={[styles.handle, { backgroundColor: colors.border }]} />
-              </View>
-              
-              <Text style={[styles.title, { color: colors.text }]}>{getTitle()}</Text>
+    <Modal animationType="slide" transparent visible={visible} onRequestClose={handleClose} statusBarTranslucent>
+      <View style={styles.overlay}>
+        <TouchableWithoutFeedback onPress={handleClose}>
+          <View style={StyleSheet.absoluteFill} />
+        </TouchableWithoutFeedback>
 
-              <View style={styles.grid}>
-                {context === 'index' && (
-                  <>
-                    <TransactionButtons />
-                    <DebtButtons />
-                    <GoalButton /> 
-                  </>
-                )}
-
-                {context === 'transactions' && <TransactionButtons />}
-                {context === 'debts' && <DebtButtons />}
-                {context === 'goals' && <GoalButton />}
-              </View>
-
-            </View>
-          </TouchableWithoutFeedback>
+        <View style={[
+          styles.sheet, 
+          { 
+            backgroundColor: colors.card, 
+            paddingBottom: Math.max(insets.bottom + 20, 32) // Aumentado para não colar na TabBar
+          }
+        ]}>
+          <View style={styles.handleBar}><View style={[styles.handle, { backgroundColor: colors.border }]} /></View>
+          
+          {/* Trocamos ScrollView por uma View com distribuição Space-Around */}
+          <View style={[
+            styles.compactContainer,
+            context !== 'index' && { justifyContent: 'center', gap: 20 }
+          ]}>
+            {(context === 'index' || context === 'transactions') && (
+              <ActionItem icon="money-off" label="Despesa" color="#fa6238" bg={isDark ? 'rgba(250, 98, 56, 0.12)' : '#fef2f2'} route="/AddTransaction?type=expense" />
+            )}
+            {(context === 'index' || context === 'transactions') && (
+              <ActionItem icon="attach-money" label="Receita" color="#0bda5b" bg={isDark ? 'rgba(11, 218, 91, 0.12)' : '#ecfdf5'} route="/AddTransaction?type=income" />
+            )}
+            {(context === 'index' || context === 'debts') && (
+              <ActionItem icon="remove-circle-outline" label="Dívida" color="#ea580c" bg={isDark ? 'rgba(234, 88, 12, 0.12)' : '#fff7ed'} route="/AddDebt?type=debt" />
+            )}
+            {(context === 'index' || context === 'debts') && (
+              <ActionItem icon="add-circle-outline" label="Empréstimo" color="#1773cf" bg={isDark ? 'rgba(23, 115, 207, 0.12)' : '#eff6ff'} route="/AddDebt?type=loan" />
+            )}
+            {(context === 'index' || context === 'goals') && (
+              <ActionItem icon="flag" label="Objetivo" color="#d946ef" bg={isDark ? 'rgba(217, 70, 239, 0.12)' : '#fdf4ff'} route="/AddGoal" />
+            )}
+          </View>
         </View>
-      </TouchableWithoutFeedback>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.5)', 
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    borderTopLeftRadius: 32, // 🚀 Aumentado para combinar com os novos modais
-    borderTopRightRadius: 32,
-    paddingHorizontal: 20, 
-    paddingTop: 10,
-    width: '100%',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -5 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 20,
-  },
-  handleContainer: { alignItems: 'center', marginBottom: 20, marginTop: 6 },
-  handle: {
-    width: 48, // 🚀 Aumentado para facilitar visualmente o arraste
-    height: 5, 
-    borderRadius: 3, 
-  },
-  title: {
-    fontSize: 18, 
-    fontWeight: '800', 
-    marginBottom: 24, 
-    textAlign: 'center',
-    letterSpacing: -0.3
-  },
-  grid: {
-    flexDirection: 'row', 
-    flexWrap: 'wrap', 
-    justifyContent: 'space-between', 
-    gap: 12
-  },
-  squareButton: {
-    width: BUTTON_WIDTH,
-    borderWidth: 1.5, // 🚀 Borda ligeiramente mais visível
-    borderRadius: 24, 
-    paddingVertical: 24, 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    elevation: 2,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4,
-  },
-  fullWidthButton: {
-    width: '100%',
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  sheet: { borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingTop: 12 },
+  handleBar: { alignItems: 'center', marginBottom: 20 },
+  handle: { width: 36, height: 4, borderRadius: 2, opacity: 0.5 },
+  compactContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1.5, 
-    borderRadius: 20, 
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    elevation: 2,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4,
+    justifyContent: 'space-evenly', // 🚀 Distribui os 5 itens perfeitamente
+    width: '100%',
+    paddingHorizontal: 8
   },
-  iconBox: {
-    width: 56, // 🚀 Maior destaque para os ícones principais
-    height: 56, 
-    borderRadius: 28, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    marginBottom: 12
+  actionItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: (width - 32) / 5, // 🚀 Divide a tela exatamente por 5
   },
-  iconBoxSmall: {
-    width: 44, 
-    height: 44, 
-    borderRadius: 22, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    marginRight: 14
+  iconCircle: {
+    width: 48, // 🚀 Reduzido para não estourar
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
   },
   actionLabel: {
-    fontSize: 14, 
-    fontWeight: '700', 
-    letterSpacing: 0.3
-  },
-  actionLabelRow: {
-    fontSize: 15, 
-    fontWeight: '700', 
-    letterSpacing: 0.3
+    fontSize: 9, 
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    textAlign: 'center'
   }
 });

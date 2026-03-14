@@ -131,6 +131,7 @@ export default function MainHeader({ activeWallet, onWalletChange }: MainHeaderP
           setSelectorVisible(false);
           setCreateWalletVisible(true);
         }}
+        onManagePress={() => router.push('/MyWallets')}
       />
 
       <CreateWalletModal 
