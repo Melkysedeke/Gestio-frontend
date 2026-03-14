@@ -14,8 +14,9 @@ import {
   TouchableWithoutFeedback,
   Keyboard
 } from "react-native";
-// 🚀 1. Importação da SafeArea
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+
+// 🚀 Trocado SafeAreaView por View comum + hook de insets
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, router } from "expo-router";
 import { Q } from "@nozbe/watermelondb";
@@ -25,7 +26,6 @@ import { FlashList } from "@shopify/flash-list";
 import { database } from "../../src/database";
 import { useAuthStore } from "../../src/stores/authStore";
 import { useThemeColor } from "@/hooks/useThemeColor"; 
-import { syncData } from '../../src/services/SyncService';
 import Wallet from '../../src/database/models/Wallet';
 import Debt from '../../src/database/models/Debt';
 
@@ -36,7 +36,6 @@ export default function DebtsScreen() {
   const { user } = useAuthStore();
   const hideValues = useAuthStore(state => state.hideValues); 
   const { colors, isDark } = useThemeColor();
-  // 🚀 2. Hook das margens seguras
   const insets = useSafeAreaInsets();
 
   const [debts, setDebts] = useState<Debt[]>([]);
@@ -55,13 +54,6 @@ export default function DebtsScreen() {
   const paidBadgeBg = isDark ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4';
   const infoBadgeBg = isDark ? '#1e293b' : '#f1f5f9';
   const inputWrapperBg = isDark ? '#1e293b' : '#f8fafc';
-
-    useFocusEffect(
-      useCallback(() => {
-        // Sincroniza sempre que entrar na tela de início
-        syncData().then(() => fetchData());
-      }, [])
-    );
 
   const formatDisplayCurrency = (value: number) => {
     if (hideValues) return "R$ •••••";
@@ -88,7 +80,12 @@ export default function DebtsScreen() {
     }
   }, [user?.id, user?.settings?.last_opened_wallet]);
 
-  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
+  // 🚀 MUDANÇA: Lê apenas do banco local, sem forçar Sync extra!
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
 
   const { filteredDebts, totals } = useMemo(() => {
     const list = debts.filter((d) => d.type === activeTab);
@@ -159,10 +156,11 @@ export default function DebtsScreen() {
   const activeWallet = wallets.find((w) => w.id === user?.settings?.last_opened_wallet) || wallets[0];
 
   return (
-    // 🚀 3. Container Raiz trocado para SafeAreaView focando no Topo
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+    // 🚀 Container Edge-to-Edge
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} translucent backgroundColor="transparent" />
       
+      {/* 🚀 MainHeader cuida do SafeAreaView do topo */}
       <MainHeader 
         activeWallet={activeWallet}
         onWalletChange={fetchData} 
@@ -205,10 +203,9 @@ export default function DebtsScreen() {
         <FlashList
           data={filteredDebts}
           keyExtractor={(item) => item.id}
-          // @ts-ignore
+          // @ts-ignore - Ignora erro falso do TS com models do WatermelonDB
           estimatedItemSize={130}
           extraData={[hideValues, isDark, activeTab]}
-          // 🚀 4. Padding Bottom dinâmico para o scroll respeitar a UI do sistema e a TabBar
           contentContainerStyle={[styles.listPadding, { paddingBottom: Math.max(insets.bottom + 80, 120) }]}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -294,7 +291,6 @@ export default function DebtsScreen() {
       </View>
 
       <Modal visible={depositModalVisible} transparent animationType="fade" onRequestClose={() => setDepositModalVisible(false)}>
-        {/* 🚀 5. Dispensa do teclado ao clicar no fundo */}
         <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setDepositModalVisible(false); }}>
           <View style={styles.modalOverlay}>
             <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -330,7 +326,7 @@ export default function DebtsScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -345,7 +341,7 @@ const styles = StyleSheet.create({
   summaryMiniLabel: { fontSize: 10, fontWeight: '700' },
   summaryMiniValue: { fontSize: 12, fontWeight: '900' },
   listWrapper: { flex: 1 },
-  listPadding: { paddingHorizontal: 16, paddingTop: 8 }, // paddingBottom removido daqui e passado inline
+  listPadding: { paddingHorizontal: 16, paddingTop: 8 },
   card: { borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1 },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   cardHeaderLeft: { flex: 1 },

@@ -13,7 +13,7 @@ import Category from '../src/database/models/Category';
 import { useAuthStore } from '../src/stores/authStore';
 import { useRouter } from 'expo-router';
 
-// 🚀 Habilita a animação fluida no Android
+// Habilita a animação fluida no Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
@@ -42,10 +42,8 @@ export default function MonthlyReport({ walletId, selectedMonth, updateTrigger }
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [totalExpense, setTotalExpense] = useState(0);
   
-  // 🚀 Estado que controla se o card está aberto ou fechado
   const [isExpanded, setIsExpanded] = useState(true);
 
-  // 🚀 Função para animar a expansão/retração
   const toggleExpand = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setIsExpanded(!isExpanded);
@@ -127,7 +125,6 @@ export default function MonthlyReport({ walletId, selectedMonth, updateTrigger }
         finalData.push(...sortedData.map((item, index) => ({ ...item, id: String(index) })));
       }
 
-      // Suaviza a transição de "vazio" para "com dados"
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setTotalExpense(total);
       setChartData(finalData);
@@ -172,12 +169,9 @@ export default function MonthlyReport({ walletId, selectedMonth, updateTrigger }
     );
   }
 
-  // 🚀 REMOVIDO: O if que retornava `null`. Agora o card sempre existe, mas fica vazio ou recolhido.
-
   return (
     <View style={[styles.container, { backgroundColor: colors.card, borderColor: isDark ? '#2b2f3e' : colors.border, overflow: 'hidden' }]}>
       
-      {/* 🚀 Header transformado em botão para expandir/recolher */}
       <TouchableOpacity 
         style={styles.header} 
         activeOpacity={0.6} 
@@ -197,10 +191,13 @@ export default function MonthlyReport({ walletId, selectedMonth, updateTrigger }
         </View>
       </TouchableOpacity>
 
-      {/* 🚀 Conteúdo Expansível */}
+      {/* 🚀 DIVISA (Divider) ADICIONADA AQUI */}
+      {isExpanded && (
+        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+      )}
+
       {isExpanded && (
         totalExpense > 0 ? (
-          // Tem gastos: Mostra o gráfico e o botão
           <View>
             <View style={styles.content}>
               <View style={styles.chartWrapper}>
@@ -263,7 +260,6 @@ export default function MonthlyReport({ walletId, selectedMonth, updateTrigger }
             </TouchableOpacity>
           </View>
         ) : (
-          // Sem gastos: Mostra uma mensagem amigável de vazio
           <View style={styles.emptyStateContainer}>
              <MaterialIcons name="insert-chart-outlined" size={32} color={colors.border} style={{ marginBottom: 8 }} />
              <Text style={[styles.emptyStateText, { color: colors.textSub }]}>Nenhum gasto registrado neste mês.</Text>
@@ -276,13 +272,23 @@ export default function MonthlyReport({ walletId, selectedMonth, updateTrigger }
 
 const styles = StyleSheet.create({
   container: { borderRadius: 14, padding: 16, borderWidth: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }, // Margem reduzida para ficar melhor recolhido
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, // Removi a margem daqui
+  
+  // 🚀 ESTILO DA DIVISA
+  divider: {
+    height: 1,
+    width: '100%',
+    marginTop: 12,    // Espaço entre o botão e a linha
+    marginBottom: 12, // Espaço entre a linha e o conteúdo (gráfico)
+    opacity: 0.6      // Deixa a linha sutil
+  },
+
   titleRow: { flexDirection: 'row', alignItems: 'center' },
   title: { fontSize: 14, fontWeight: '800' },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   monthText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   
-  content: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, marginTop: 8 },
+  content: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 }, // Removi o marginTop pois a divisa já dá espaço
   chartWrapper: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
   
   centerTextContainer: { position: 'absolute', alignItems: 'center', width: 64 },

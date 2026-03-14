@@ -4,8 +4,9 @@ import {
   StatusBar, RefreshControl, Modal, TextInput, 
   ActivityIndicator, KeyboardAvoidingView, Platform, Alert, TouchableWithoutFeedback, Keyboard 
 } from 'react-native';
-// 🚀 1. Importação da SafeArea
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// 🚀 Trocado SafeAreaView por View comum + hook insets
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect, router } from 'expo-router';
 import { Q } from '@nozbe/watermelondb';
@@ -15,7 +16,7 @@ import { FlashList } from '@shopify/flash-list';
 import { database } from '../../src/database';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { syncData } from '../../src/services/SyncService';
+// 🚀 syncData removido das importações pois o RootLayout já gerencia isso
 import Goal from '../../src/database/models/Goal';
 import Wallet from '../../src/database/models/Wallet';
 
@@ -27,11 +28,12 @@ export default function GoalsScreen() {
   const hideValues = useAuthStore(state => state.hideValues);
   
   const { colors, isDark } = useThemeColor();
-  // 🚀 2. Hook das margens seguras
   const insets = useSafeAreaInsets();
 
   const [goals, setGoals] = useState<Goal[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
+  
+  const [loading, setLoading] = useState(true); // 🚀 Adicionado para evitar tela piscando vazia
   const [refreshing, setRefreshing] = useState(false);
 
   const [actionModalVisible, setActionModalVisible] = useState(false);
@@ -52,20 +54,15 @@ export default function GoalsScreen() {
   const infoBadgeBg = isDark ? '#1e293b' : '#f1f5f9';
   const amountWrapperBg = isDark ? '#1e293b' : '#f8fafc';
 
-  useFocusEffect(
-    useCallback(() => {
-      // Sincroniza sempre que entrar na tela de início
-      syncData().then(() => fetchData());
-    }, [])
-  );
-
-  const formatDisplayCurrency = (val: number) => {
+  const formatDisplayCurrency = useCallback((val: number) => {
     if (hideValues) return "R$ •••••";
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  };
+  }, [hideValues]);
 
   const fetchData = useCallback(async () => {
     if (!user?.id) return;
+    if (!loading) setRefreshing(true);
+
     try {
       const allWallets = await database.get<Wallet>('wallets').query().fetch();
       setWallets(allWallets);
@@ -80,11 +77,17 @@ export default function GoalsScreen() {
     } catch (error) {
       console.error("Erro goals:", error);
     } finally {
+      setLoading(false);
       setRefreshing(false);
     }
   }, [user?.id, user?.settings?.last_opened_wallet]);
 
-  useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
+  // 🚀 Apenas 1 useFocusEffect, chamando direto o banco local
+  useFocusEffect(
+    useCallback(() => { 
+      fetchData(); 
+    }, [fetchData])
+  );
 
   const totalSaved = useMemo(() => {
     return goals.reduce((acc, g) => acc + Number(g.currentAmount || (g as any)._raw.current_amount || 0), 0);
@@ -151,10 +154,18 @@ export default function GoalsScreen() {
 
   const activeWallet = wallets.find(w => w.id === user?.settings?.last_opened_wallet) || wallets[0];
 
+  if (loading && !refreshing) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
   return (
-    // 🚀 3. Container Raiz trocado para SafeAreaView focando no Topo
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+    // 🚀 Container Edge-to-Edge sem SafeAreaView raiz
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} translucent backgroundColor="transparent" />
       
       <MainHeader 
         activeWallet={activeWallet}
@@ -180,12 +191,12 @@ export default function GoalsScreen() {
         <FlashList<Goal>
           data={goals}
           keyExtractor={(item) => item.id}
-          // @ts-ignore
+          // @ts-ignore - Ignorando erro do TypeScript com Models do WatermelonDB
           estimatedItemSize={160}
           extraData={[hideValues, isDark]}
-          // 🚀 4. Padding Bottom dinâmico para evitar o botão "+" e a TabBar
+          // 🚀 Respeita o fundo da tela na rolagem
           contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom + 80, 120) }]}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={THEME_COLOR} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} tintColor={THEME_COLOR} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <MaterialIcons name="search-off" size={40} color={colors.textSub} />
@@ -266,11 +277,9 @@ export default function GoalsScreen() {
       </View>
 
       <Modal visible={actionModalVisible} transparent animationType="fade" onRequestClose={() => setActionModalVisible(false)}>
-        {/* Envolvemos a tela toda para fechar o teclado ao clicar fora */}
         <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setActionModalVisible(false); }}>
           <View style={styles.modalOverlay}>
             
-            {/* 🚀 5. KeyboardAvoidingView protegendo o modal de depósito no meio da tela */}
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
               <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                 <View style={[styles.modalContentSmall, { backgroundColor: colors.card }]}>
@@ -316,12 +325,13 @@ export default function GoalsScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' }, // 🚀 Estilo de Loading adicionado
   headerSection: { paddingTop: 12, paddingBottom: 8 },
   compactFilterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
   headerInfoGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -330,7 +340,7 @@ const styles = StyleSheet.create({
   summaryLabel: { fontSize: 10, fontWeight: '700'},
   summaryMiniValue: { fontSize: 12, fontWeight: '900' },
   listWrapper: { flex: 1 },
-  listContent: { paddingHorizontal: 16, paddingTop: 8 }, // paddingBottom removido daqui para o inline style
+  listContent: { paddingHorizontal: 16, paddingTop: 8 },
   card: { borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1 },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14, gap: 10 }, 
   iconBox: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
@@ -339,7 +349,7 @@ const styles = StyleSheet.create({
   datesColumn: { gap: 2, marginTop: 4 }, 
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 4 }, 
   cardDate: { fontSize: 10 },
-  completedBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start' }, // adicionado alignSelf
+  completedBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start' },
   completedText: { fontSize: 10, fontWeight: 'bold' },
   progressContainer: { marginBottom: 14 },
   progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },

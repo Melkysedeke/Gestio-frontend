@@ -114,14 +114,14 @@ export default function RootLayout() {
     if (!canRoute) return;
 
     if (!currentUserId) {
+      // 1. Sem usuário -> Autenticação
       router.replace('/Welcome'); 
-    } else {
-      // 🚀 MUDANÇA AQUI: Manda pro Tabs IMEDIATAMENTE!
-      // Se o syncState for 'syncing', o SyncScreen estará renderizado por cima (absolute),
-      // então o usuário não verá o Dashboard carregando.
+    } else if (syncState === 'done') {
+      // 2. Com usuário E Sincronização Local concluída -> Dashboard
+      // Aqui temos certeza absoluta de que o banco local já tem os dados da nuvem
       router.replace('/(tabs)');
     }
-  }, [appIsReady, fontsLoaded, _hasHydrated, splashFinished, currentUserId, router]);
+  }, [appIsReady, fontsLoaded, _hasHydrated, splashFinished, currentUserId, syncState, router]);
 
   // Ocultar a Splash Nativa
   const onLayoutRootView = useCallback(async () => {

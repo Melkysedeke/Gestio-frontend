@@ -1,31 +1,35 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, SectionList, TouchableOpacity, StatusBar, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SectionList, StatusBar, RefreshControl, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useFocusEffect, router } from 'expo-router';
-// 🚀 1. Importações da SafeArea
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
+// 🚀 Removido o SafeAreaView, mantido apenas o hook dos insets
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Q } from '@nozbe/watermelondb';
 
 import { database } from '../../src/database';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import { syncData } from '../../src/services/SyncService';
+
+// Models
 import Transaction from '../../src/database/models/Transaction';
 import Wallet from '../../src/database/models/Wallet';
 
+// Componentes
 import MainHeader from '../../components/MainHeader';
 import MonthSelector from '../../components/MonthSelector';
 import TransactionFilters from '../../components/TransactionFilters';
+import TransactionItem from '../../components/TransactionItem';
 
 export default function TransactionsScreen() {
   const { user } = useAuthStore();
   const hideValues = useAuthStore(state => state.hideValues);
 
   const { colors, isDark } = useThemeColor();
-  const insets = useSafeAreaInsets();
+  const insets = useSafeAreaInsets(); // 🚀 Pegamos as medidas reais das bordas
 
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
 
@@ -33,17 +37,16 @@ export default function TransactionsScreen() {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [searchText, setSearchText] = useState('');
   const [selectedType, setSelectedType] = useState<'all' | 'income' | 'expense'>('all');
-  
-  // 🚀 ESTADO CORRETO PARA MÚLTIPLAS CATEGORIAS
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
-  const formatDisplayCurrency = (value: number) => {
-    if (hideValues) return "R$ •••••";
+  const formatCurrency = useCallback((value: number) => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  };
+  }, []);
 
   const fetchData = useCallback(async () => {
     if (!user?.id) return;
+    if (!loading) setRefreshing(true); 
+
     try {
       const allWallets = await database.get<Wallet>('wallets').query().fetch();
       setWallets(allWallets);
@@ -74,23 +77,18 @@ export default function TransactionsScreen() {
     }
   }, [user?.id, user?.settings?.last_opened_wallet, selectedMonth, selectedType]);
 
-  // 🚀 CORREÇÃO DO ESLINT: O sync inicial deve chamar o fetchData de forma segura
   useFocusEffect(
     useCallback(() => {
-      syncData().then(() => fetchData());
+      fetchData();
     }, [fetchData])
   );
 
-  // 🚀 LÓGICA DE FILTRAGEM ATUALIZADA (Para Array de Categorias)
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
-      // 1. Filtro de Texto (Busca na descrição ou nome da categoria)
       const mSearch = !searchText || 
                       t.description?.toLowerCase().includes(searchText.toLowerCase()) || 
                       t.categoryName?.toLowerCase().includes(searchText.toLowerCase());
       
-      // 2. Filtro de Múltiplas Categorias
-      // Se o array for vazio, mostra tudo. Se não, verifica se o nome da categoria está no array.
       const mCat = selectedCategories.length === 0 || selectedCategories.includes(t.categoryName);
       
       return mSearch && mCat;
@@ -98,29 +96,36 @@ export default function TransactionsScreen() {
   }, [transactions, searchText, selectedCategories]);
 
   const sections = useMemo(() => {
-    const grouped: any = {};
-    filteredTransactions.forEach(t => {
+    const grouped = filteredTransactions.reduce((acc: any, t) => {
       const key = new Date(t.transactionDate).toISOString().split('T')[0];
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(t);
-    });
-    return Object.keys(grouped).sort((a, b) => b.localeCompare(a)).map(k => ({ title: formatDateHeader(k), data: grouped[k] }));
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(t);
+      return acc;
+    }, {});
+
+    return Object.keys(grouped)
+      .sort((a, b) => b.localeCompare(a))
+      .map(key => ({ title: formatDateHeader(key), data: grouped[key] }));
   }, [filteredTransactions]);
 
   function formatDateHeader(dateString: string) {
     const d = new Date(dateString + 'T12:00:00');
     const now = new Date();
+    
     if (dateString === now.toISOString().split('T')[0]) return 'Hoje';
+    
     now.setDate(now.getDate() - 1);
     if (dateString === now.toISOString().split('T')[0]) return 'Ontem';
-    return d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }).replace('-feira', '').replace(/^\w/, c => c.toUpperCase());
+    
+    return d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })
+            .replace('-feira', '')
+            .replace(/^\w/, c => c.toUpperCase());
   }
 
-  // 🚀 CORREÇÃO DO CLEAR ALL
   const handleClearAll = () => {
     setSearchText('');
     setSelectedType('all');
-    setSelectedCategories([]); // Passa um array vazio!
+    setSelectedCategories([]); 
   };
 
   const activeWallet = wallets.find(w => w.id === user?.settings?.last_opened_wallet) || wallets[0];
@@ -134,9 +139,11 @@ export default function TransactionsScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+    // 🚀 Trocado SafeAreaView por View comum para o background vazar até as bordas
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} translucent backgroundColor="transparent" />
 
+      {/* 🚀 O MainHeader possui seu próprio SafeAreaView para empurrar o conteúdo para baixo da Status Bar */}
       <MainHeader 
         activeWallet={activeWallet}
         onWalletChange={fetchData} 
@@ -159,50 +166,24 @@ export default function TransactionsScreen() {
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.id}
+        // 🚀 O paddingBottom usa o insets.bottom para não esconder o último item atrás da TabBar ou da Home Indicator do iPhone
         contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom + 80, 120) }]}
         stickySectionHeadersEnabled={false}
         extraData={hideValues} 
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={colors.primary} />}
-        renderItem={({ item }) => {
-          const isIncome = item.type === 'income';
-          const iconBgColor = isIncome
-            ? (isDark ? 'rgba(34, 197, 94, 0.15)' : '#f0fdf4')
-            : (isDark ? 'rgba(239, 68, 68, 0.15)' : '#fef2f2');
-          const amountColor = isIncome ? colors.success : colors.danger;
-          const isLinked = !!((item as any)._raw?.debt_id || (item as any)._raw?.goal_id);
-
-          return (
-            <TouchableOpacity
-              style={[styles.transactionItem, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => router.push({ pathname: '/EditTransaction', params: { id: item.id } })}
-              activeOpacity={0.7}
-            >
-              <View style={styles.itemLeft}>
-                <View style={[styles.iconCircle, { backgroundColor: iconBgColor }]}>
-                  <MaterialIcons name={(item.categoryIcon || 'attach-money') as any} size={20} color={amountColor} />
-                </View>
-                <View style={styles.descContainer}>
-                  <View style={styles.titleRow}>
-                    <Text style={[styles.itemTitle, { color: colors.text }]} numberOfLines={1}>{item.categoryName || 'Geral'}</Text>
-                    {isLinked && (
-                      <View style={[styles.linkedBadge, { backgroundColor: isDark ? '#334155' : '#e2e8f0' }]}>
-                        <MaterialIcons name="lock" size={8} color={colors.textSub} />
-                        <Text style={[styles.linkedText, { color: colors.textSub }]}>Vinculado</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={[styles.itemSubtitle, { color: colors.textSub }]} numberOfLines={1}>
-                    {new Date(item.transactionDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                    {item.description ? ` • ${item.description}` : ''}
-                  </Text>
-                </View>
-              </View>
-              <Text style={[styles.itemAmount, { color: amountColor }]}>
-                {isIncome ? '+' : '-'} {formatDisplayCurrency(item.amount)}
-              </Text>
-            </TouchableOpacity>
-          );
-        }}
+        refreshControl={
+            <RefreshControl 
+                refreshing={refreshing} 
+                onRefresh={fetchData} 
+                tintColor={colors.primary} 
+            />
+        }
+        renderItem={({ item }) => (
+          <TransactionItem 
+            item={item}
+            hideValues={hideValues}
+            formatCurrency={formatCurrency}
+          />
+        )}
         renderSectionHeader={({ section: { title } }) => (
           <Text style={[styles.sectionTitle, { color: colors.textSub }]}>{title}</Text>
         )}
@@ -213,95 +194,23 @@ export default function TransactionsScreen() {
           </View>
         }
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  filterSection: {
-    paddingTop: 12,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-    gap: 16
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 0,
-  },
+  container: { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  filterSection: { paddingTop: 12, paddingBottom: 16, paddingHorizontal: 16, gap: 16 },
+  listContent: { paddingHorizontal: 16, paddingTop: 0 },
   sectionTitle: {
     fontSize: 11,
     fontWeight: '800',
     marginTop: 12,
-    marginBottom: 6,
+    marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.5
   },
-  transactionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 16,
-    marginBottom: 6,
-    borderWidth: 1 // 🚀 Para a cor da borda funcionar
-  },
-  itemLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10
-  },
-  iconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  descContainer: {
-    flex: 1
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6
-  },
-  itemTitle: {
-    fontSize: 14,
-    fontWeight: '700'
-  },
-  linkedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 4,
-    gap: 2
-  },
-  linkedText: {
-    fontSize: 8,
-    fontWeight: 'bold'
-  },
-  itemSubtitle: {
-    fontSize: 12
-  },
-  itemAmount: {
-    fontSize: 14,
-    fontWeight: '900'
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    marginTop: 80
-  },
-  emptyText: {
-    marginTop: 8
-  }
+  emptyContainer: { alignItems: 'center', marginTop: 80 },
+  emptyText: { marginTop: 8, fontSize: 14, fontWeight: '600' }
 });
