@@ -58,7 +58,7 @@ export default function SecurityScreen() {
     setLoading(true);
     try {
       // 🚀 Requisição direta e síncrona para o seu Backend
-      const response = await api.put('/users/change-password', { 
+      const response = await api.put('/users/update-password', { 
         oldPassword: oldP, 
         newPassword: newP 
       });

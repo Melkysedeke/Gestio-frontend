@@ -17,8 +17,10 @@ import * as Haptics from 'expo-haptics';
 
 import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
+// 🚀 1. Importar a API
+import api from '../src/services/api';
 
-// 🚀 Componentes Padronizados
+// Componentes Padronizados
 import SubHeader from '@/components/SubHeader';
 import CustomInput from '@/components/CustomInput';
 import PrimaryButton from '@/components/PrimaryButton';
@@ -37,37 +39,47 @@ export default function EditProfileScreen() {
 
   async function handleUpdate() {
     Keyboard.dismiss();
-    
-    if (!name.trim()) {
+    const newName = name.trim();
+    if (!newName) {
       triggerNotificationHaptic(Haptics.NotificationFeedbackType.Warning);
       return Alert.alert('Erro', 'O nome não pode estar vazio.');
     }
-
+    if (newName === user?.name) {
+      // Se não mudou nada, apenas volta
+      return router.back();
+    }
     setLoading(true);
     try {
-        await updateUserSetting({ 
-            name: name.trim(), 
-            email: user?.email
+      // 🚀 2. Envia para o backend PRIMEIRO (se não for convidado)
+      if (!isGuest) {
+        await api.put('/users/update-profile', { 
+          name: newName,
+          email: user?.email // O backend pede o email mesmo que não vá alterar
         });
-
-        triggerNotificationHaptic(Haptics.NotificationFeedbackType.Success);
-        Alert.alert('Sucesso', 'Seus dados foram atualizados!', [
-          { text: 'OK', onPress: () => router.back() }
-        ]);
+      }
+      // 🚀 3. Atualiza o banco local (WatermelonDB e Estado do Zustand)
+      await updateUserSetting({ 
+          name: newName, 
+          // Não passamos o e-mail aqui se ele for o mesmo, para evitar 'dirty marks' desnecessárias
+      });
+      triggerNotificationHaptic(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Sucesso', 'Seus dados foram atualizados!', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
     } catch (error: any) {
-        console.error("Erro ao atualizar perfil:", error);
-        triggerNotificationHaptic(Haptics.NotificationFeedbackType.Error);
-        const msg = error.response?.data?.error || 'Não foi possível salvar as alterações.';
-        Alert.alert('Erro', msg);
+      console.error("Erro ao atualizar perfil:", error);
+      triggerNotificationHaptic(Haptics.NotificationFeedbackType.Error);
+      // Captura mensagem de erro do servidor, se existir
+      const msg = error.response?.data?.error || 'Não foi possível salvar as alterações.';
+      Alert.alert('Erro', msg);
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   }
 
   const disabledBgColor = isDark ? 'rgba(255,255,255,0.05)' : '#F1F5F9';
 
   return (
-    // 🚀 Trocamos SafeAreaView por View. O SubHeader já protege o topo!
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar 
         barStyle={isDark ? "light-content" : "dark-content"} 
@@ -77,10 +89,10 @@ export default function EditProfileScreen() {
 
       <SubHeader title="Dados Pessoais" />
 
+      {/* 🚀 O KeyboardAvoidingView DEVE envolver apenas o ScrollView */}
       <KeyboardAvoidingView 
         style={styles.keyboardView} 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0} // Compensa a altura do Header
       >
         <ScrollView 
           contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom + 20, 40) }]}
@@ -139,63 +151,17 @@ export default function EditProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1 
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContent: { 
-    paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-  section: {
-    marginBottom: 10,
-  },
-  sectionTitle: { 
-    fontSize: 18, 
-    fontWeight: '900', 
-    marginBottom: 20,
-    letterSpacing: -0.5
-  },
-  inputGroup: { 
-    marginBottom: 16 
-  },
-  labelRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8
-  },
-  label: { 
-    fontSize: 13, 
-    fontWeight: '700',
-    marginLeft: 4,
-    letterSpacing: 0.3
-  },
-  guestBadge: { 
-    fontSize: 10,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-  },
-  disabledInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 14,
-    height: 52,
-    paddingHorizontal: 14, 
-  },
-  disabledIconLeft: {
-    marginRight: 10
-  },
-  inputDisabledText: {
-    flex: 1,
-    fontSize: 15,
-  },
-  helperText: {
-    fontSize: 11,
-    marginTop: 6, 
-    marginLeft: 4,
-  }
+  container: { flex: 1 },
+  keyboardView: { flex: 1 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 20 },
+  section: { marginBottom: 10 },
+  sectionTitle: { fontSize: 18, fontWeight: '900', marginBottom: 20, letterSpacing: -0.5 },
+  inputGroup: { marginBottom: 16 },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  label: { fontSize: 13, fontWeight: '700', marginLeft: 4, letterSpacing: 0.3 },
+  guestBadge: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
+  disabledInputWrapper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 14, height: 52, paddingHorizontal: 14 },
+  disabledIconLeft: { marginRight: 10 },
+  inputDisabledText: { flex: 1, fontSize: 15 },
+  helperText: { fontSize: 11, marginTop: 6, marginLeft: 4 }
 });
