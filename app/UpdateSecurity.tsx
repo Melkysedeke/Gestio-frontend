@@ -58,7 +58,7 @@ export default function SecurityScreen() {
     setLoading(true);
     try {
       // 🚀 Requisição direta e síncrona para o seu Backend
-      const response = await api.post('/users/change-password', { 
+      const response = await api.put('/users/change-password', { 
         oldPassword: oldP, 
         newPassword: newP 
       });
@@ -78,10 +78,9 @@ export default function SecurityScreen() {
       
     } catch (error: any) {
       triggerNotificationHaptic(Haptics.NotificationFeedbackType.Error);
-      
-      // Trata mensagens de erro específicas do seu backend
-      const errorMessage = error.response?.data?.message || 'Falha ao atualizar senha. Verifique sua senha atual.';
+      const errorMessage = error.response?.data?.error || 'Falha ao atualizar senha. Verifique sua conexão.';
       Alert.alert('Erro', errorMessage);
+      console.log("Erro completo na troca de senha:", error.response?.data || error.message);
       
     } finally {
       setLoading(false);
