@@ -50,11 +50,23 @@ export default function SecurityScreen() {
       triggerNotificationHaptic(Haptics.NotificationFeedbackType.Error);
       return Alert.alert('Erro', 'As senhas não coincidem.');
     }
+    if (newP.length < 6) { // Adicionando validação básica sugerida pelo placeholder
+      triggerNotificationHaptic(Haptics.NotificationFeedbackType.Warning);
+      return Alert.alert('Atenção', 'A nova senha deve ter no mínimo 6 caracteres.');
+    }
 
     setLoading(true);
     try {
-      // 🚀 Lógica real de update entraria aqui
-      // Ex: await api.post('/users/change-password', { oldPassword: oldP, newPassword: newP });
+      // 🚀 Requisição direta e síncrona para o seu Backend
+      const response = await api.post('/users/change-password', { 
+        oldPassword: oldP, 
+        newPassword: newP 
+      });
+      
+      // 🚀 Se a sua API retorna um novo token após trocar a senha (Boa prática de segurança)
+      // if (response.data.token) {
+      //   useAuthStore.getState().setSession(user, response.data.token);
+      // }
       
       triggerNotificationHaptic(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Sucesso', 'Sua senha foi atualizada com segurança!');
@@ -64,9 +76,13 @@ export default function SecurityScreen() {
       setNewPassword('');
       setConfirmPassword('');
       
-    } catch {
+    } catch (error: any) {
       triggerNotificationHaptic(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Erro', 'Falha ao atualizar senha. Verifique sua senha atual.');
+      
+      // Trata mensagens de erro específicas do seu backend
+      const errorMessage = error.response?.data?.message || 'Falha ao atualizar senha. Verifique sua senha atual.';
+      Alert.alert('Erro', errorMessage);
+      
     } finally {
       setLoading(false);
     }
