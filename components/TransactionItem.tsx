@@ -57,7 +57,7 @@ export default function TransactionItem({ item, hideValues, formatCurrency }: Pr
       </View>
       
       <Text style={[styles.amount, { color: itemColor }]}>
-        {isIncome ? '+' : '-'} {hideValues ? '***' : formatCurrency(item.amount)}
+        {isIncome ? '+' : '-'} {hideValues ? 'R$ •••••' : formatCurrency(item.amount)}
       </Text>
     </TouchableOpacity>
   );
