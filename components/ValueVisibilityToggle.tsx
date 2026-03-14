@@ -1,16 +1,19 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useAuthStore } from '../src/stores/authStore';
+
+// 🚀 Importando o seu utilitário
+import { triggerSelectionHaptic } from '@/src/utils/haptics';
 
 export default function ValueVisibilityToggle() {
   const { colors, isDark } = useThemeColor();
   const { hideValues, toggleHideValues } = useAuthStore();
 
   const handleToggle = () => {
-    Haptics.selectionAsync();
+    // 🚀 Usando o seu utilitário em vez do Expo direto
+    triggerSelectionHaptic();
     toggleHideValues();
   };
 
