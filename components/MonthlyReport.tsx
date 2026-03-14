@@ -275,7 +275,7 @@ export default function MonthlyReport({ walletId, selectedMonth, updateTrigger }
 }
 
 const styles = StyleSheet.create({
-  container: { borderRadius: 24, padding: 16, borderWidth: 1, marginVertical: 8 },
+  container: { borderRadius: 14, padding: 16, borderWidth: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }, // Margem reduzida para ficar melhor recolhido
   titleRow: { flexDirection: 'row', alignItems: 'center' },
   title: { fontSize: 14, fontWeight: '800' },
