@@ -16,6 +16,7 @@ import { useAuthStore } from '../src/stores/authStore';
 import WalletSelectorModal from './WalletSelectorModal';
 import CreateWalletModal from './CreateWalletModal';
 import UserAvatar from './UserAvatar'; 
+import ValueVisibilityToggle from './ValueVisibilityToggle';
 
 interface MainHeaderProps {
   activeWallet: any;
@@ -80,25 +81,7 @@ export default function MainHeader({ activeWallet, onWalletChange }: MainHeaderP
               </View>
             </TouchableOpacity>
 
-            {activeWallet && (
-              <TouchableOpacity 
-                onPress={handleToggleHide} 
-                style={[
-                  styles.visibilityButton, 
-                  { 
-                    borderColor: colors.border, 
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc' 
-                  }
-                ]}
-                activeOpacity={0.7}
-              >
-                <MaterialIcons 
-                  name={hideValues ? "visibility-off" : "visibility"} 
-                  size={20} 
-                  color={hideValues ? colors.primary : colors.textSub} 
-                />
-              </TouchableOpacity>
-            )}
+            {activeWallet && <ValueVisibilityToggle />}
           </View>
 
           <TouchableOpacity 
