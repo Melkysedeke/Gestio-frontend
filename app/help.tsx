@@ -9,11 +9,13 @@ import {
   Linking, 
   Platform 
 } from 'react-native';
+// 🚀 1. Importações do SafeAreaView
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { useAuthStore } from '../src/stores/authStore';
 
-import SubHeader from '@/components/SubHeader'; // 🚀 Importando o novo padrão
+import SubHeader from '@/components/SubHeader'; 
 
 const FAQ_ITEMS = [
   { 
@@ -38,6 +40,8 @@ export default function HelpScreen() {
   const user = useAuthStore(state => state.user);
   const isGuest = user?.email?.includes('@local');
   const { colors, isDark } = useThemeColor();
+  // 🚀 2. Instanciando o insets
+  const insets = useSafeAreaInsets();
 
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
@@ -57,14 +61,15 @@ export default function HelpScreen() {
   const faqBodyBg = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)';
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    // 🚀 3. SafeAreaView envolvendo a tela para proteger o SubHeader do topo
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      {/* 🚀 Substituindo o antigo bloco de header */}
       <SubHeader title="Ajuda e Suporte" />
 
       <ScrollView 
-        contentContainerStyle={styles.scrollContent} 
+        // 🚀 4. Padding bottom dinâmico para a assinatura final e a barra inferior do OS
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom + 20, 40) }]} 
         showsVerticalScrollIndicator={false}
       >
         
@@ -80,7 +85,6 @@ export default function HelpScreen() {
 
         <Text style={[styles.sectionTitle, { color: colors.textSub }]}>Fale Conosco</Text>
         
-        {/* 🚀 Bloco de botões de contato corrigido */}
         <View style={styles.contactRow}>
           <TouchableOpacity 
             style={[styles.contactCard, { backgroundColor: colors.card, borderColor: colors.border }]} 
@@ -135,7 +139,7 @@ export default function HelpScreen() {
         </View>
 
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -143,10 +147,9 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1 
   },
-  // 🚀 O styles.content virou scrollContent para melhor legibilidade e padding final
   scrollContent: { 
     padding: 20,
-    paddingBottom: 40
+    // paddingBottom estático foi removido para usar a fórmula inline com insets
   },
   sectionTitle: { 
     fontSize: 14, 
@@ -174,7 +177,7 @@ const styles = StyleSheet.create({
   contactRow: { 
     flexDirection: 'row', 
     gap: 12,
-    marginBottom: 24, // Adicionado para dar espaço do título FAQ
+    marginBottom: 24, 
   },
   contactCard: {
     flex: 1, 

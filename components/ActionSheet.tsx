@@ -5,7 +5,9 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useThemeColor } from '@/hooks/useThemeColor'; // <--- Hook Importado
+// 🚀 1. Importação do hook de SafeArea
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useThemeColor } from '@/hooks/useThemeColor';
 
 // Define quais contextos existem
 export type SheetContext = 'index' | 'transactions' | 'debts' | 'goals';
@@ -21,7 +23,9 @@ const BUTTON_WIDTH = (width - 40 - 12) / 2;
 
 export default function ActionSheet({ visible, context, onClose }: Props) {
   const router = useRouter();
-  const { colors, isDark } = useThemeColor(); // <--- Cores Dinâmicas
+  const { colors, isDark } = useThemeColor();
+  // 🚀 2. Instanciando o insets
+  const insets = useSafeAreaInsets();
 
   const handleNavigate = (route: string) => {
     onClose();
@@ -40,7 +44,6 @@ export default function ActionSheet({ visible, context, onClose }: Props) {
     }
   };
 
-  // --- Helpers de Estilo Dinâmico ---
   const buttonStyle = {
     backgroundColor: colors.card,
     borderColor: colors.border
@@ -97,6 +100,7 @@ export default function ActionSheet({ visible, context, onClose }: Props) {
   );
 
   const GoalButton = () => (
+    // 🚀 O retorno (return) estava implicito incorretamente na sua versão original
     <TouchableOpacity 
         style={[styles.fullWidthButton, buttonStyle]} 
         onPress={() => handleNavigate('/AddGoal')} 
@@ -120,7 +124,13 @@ export default function ActionSheet({ visible, context, onClose }: Props) {
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
-            <View style={[styles.sheet, { backgroundColor: colors.card }]}>
+            <View style={[
+                styles.sheet, 
+                { 
+                  backgroundColor: colors.card,
+                  paddingBottom: Math.max(insets.bottom + 20, 40)
+                }
+              ]}>
               
               <View style={styles.handleContainer}>
                   <View style={[styles.handle, { backgroundColor: colors.border }]} />
@@ -157,11 +167,10 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    // backgroundColor: '#FFF',  <-- Removido, agora é dinâmico
     borderTopLeftRadius: 24, 
     borderTopRightRadius: 24,
     paddingHorizontal: 20, 
-    paddingBottom: 40,
+    // paddingBottom: 40, <-- Removido para o style inline
     paddingTop: 10,
     width: '100%',
     shadowColor: "#000",
@@ -174,13 +183,11 @@ const styles = StyleSheet.create({
   handle: {
     width: 40, 
     height: 4, 
-    // backgroundColor: '#e2e8f0', <-- Removido, agora é dinâmico
     borderRadius: 2, 
   },
   title: {
     fontSize: 18, 
     fontWeight: '800', 
-    // color: '#0f172a', <-- Removido
     marginBottom: 24, 
     textAlign: 'center'
   },
@@ -193,9 +200,7 @@ const styles = StyleSheet.create({
   
   squareButton: {
     width: BUTTON_WIDTH,
-    // backgroundColor: '#fff', <-- Removido
     borderWidth: 1, 
-    // borderColor: '#f1f5f9', <-- Removido
     borderRadius: 20, 
     paddingVertical: 20, 
     alignItems: 'center', 
@@ -208,9 +213,7 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    // backgroundColor: '#fff', <-- Removido
     borderWidth: 1, 
-    // borderColor: '#f1f5f9', <-- Removido
     borderRadius: 20, 
     paddingHorizontal: 16,
     paddingVertical: 16,
@@ -238,11 +241,9 @@ const styles = StyleSheet.create({
   actionLabel: {
     fontSize: 13, 
     fontWeight: '600', 
-    // color: '#334155' <-- Removido
   },
   actionLabelRow: {
     fontSize: 14, 
     fontWeight: '700', 
-    // color: '#334155' <-- Removido
   }
 });

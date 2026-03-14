@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Dimensions, StatusBar } from 'react-native';
 import Animated, { 
   useSharedValue, 
@@ -15,7 +15,6 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 const { width } = Dimensions.get('window');
 const LOGO_SOURCE = require('../assets/images/adaptive-icon.png');
 
-// Aumentei um pouquinho para dar um respiro em volta do logo
 const SPINNER_SIZE = 136; 
 const SPINNER_THICKNESS = 4; 
 
@@ -25,6 +24,7 @@ interface Props {
 
 export default function SplashScreen({ onFinish }: Props) {
   const { colors, isDark } = useThemeColor();
+  const mounted = useRef(true);
 
   const logoScale = useSharedValue(0.1); 
   const logoOpacity = useSharedValue(0);
@@ -44,12 +44,14 @@ export default function SplashScreen({ onFinish }: Props) {
     logoScale.value = withTiming(1.5, { duration: 500 });
 
     setTimeout(() => {
-      onFinish();
+      if (mounted.current) onFinish();
     }, 510); 
   };
 
   useEffect(() => {
-    // Rotação linear infinita (leva 1.2 segundos para dar uma volta completa)
+    mounted.current = true;
+
+    // Rotação linear infinita
     spinnerRotation.value = withRepeat(
       withTiming(360, { duration: 1200, easing: Easing.linear }), 
       -1, 
@@ -64,6 +66,7 @@ export default function SplashScreen({ onFinish }: Props) {
     const exitTimeout = setTimeout(startExitAnimation, 3000);
 
     return () => {
+      mounted.current = false;
       clearTimeout(logoTimeout);
       clearTimeout(exitTimeout);
       cancelAnimation(logoScale);
@@ -81,7 +84,6 @@ export default function SplashScreen({ onFinish }: Props) {
     opacity: logoOpacity.value
   }));
 
-  // O container quadrado principal que vai rodar perfeitamente no eixo
   const spinnerRotateStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${spinnerRotation.value}deg` }]
   }));
@@ -100,31 +102,31 @@ export default function SplashScreen({ onFinish }: Props) {
   }));
 
   return (
-    <Animated.View style={[styles.container, { backgroundColor: colors.background || '#FFFFFF' }, containerStyle]}>
+    <Animated.View style={[styles.container, { backgroundColor: colors.background }, containerStyle]}>
       <StatusBar 
         barStyle={isDark ? "light-content" : "dark-content"} 
-        backgroundColor={colors.background || '#FFFFFF'} 
+        backgroundColor={colors.background} 
+        translucent
       />
       
-      <Animated.View style={[styles.blobBottom, { backgroundColor: colors.primary || '#1773cf' }, blobStyle]} />
-      <Animated.View style={[styles.blobTop, { backgroundColor: colors.primary || '#1773cf' }, blobStyle]} />
+      <Animated.View style={[styles.blobBottom, { backgroundColor: colors.primary }, blobStyle]} />
+      <Animated.View style={[styles.blobTop, { backgroundColor: colors.primary }, blobStyle]} />
 
       <View style={styles.contentContainer}>
         <Animated.View style={[styles.logoWrapper, logoPopStyle]}>
-          <View style={[styles.logoGlow, { backgroundColor: colors.primary || '#1773cf' }]} />
+          <View style={[styles.logoGlow, { backgroundColor: colors.primary }]} />
           
-          {/* 🔥 A ESTRUTURA INFALÍVEL DA BONECA RUSSA */}
           <Animated.View style={[styles.spinnerWrapper, spinnerRotateStyle]}>
             <View style={styles.spinnerHalfClipper}>
-               <View style={[styles.solidRing, { borderColor: colors.primary || '#1773cf' }]} />
+               <View style={[styles.solidRing, { borderColor: colors.primary }]} />
             </View>
           </Animated.View>
           
           <View style={[
               styles.logoContainer, 
               { 
-                backgroundColor: colors.card || '#FFFFFF', 
-                shadowColor: colors.primary || '#1773cf' 
+                backgroundColor: colors.card, 
+                shadowColor: colors.primary 
               }
             ]}>
             <Animated.Image 
@@ -136,8 +138,8 @@ export default function SplashScreen({ onFinish }: Props) {
         </Animated.View>
 
         <Animated.View style={[styles.textContainer, textStyle]}>
-          <Text style={[styles.title, { color: colors.text || '#000000' }]}>Gestio</Text>
-          <Text style={[styles.subtitle, { color: colors.textSub || '#666666' }]}>Gestão de Finanças Pessoais</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Gestio</Text>
+          <Text style={[styles.subtitle, { color: colors.textSub }]}>Gestão de Finanças Pessoais</Text>
         </Animated.View>
       </View>
     </Animated.View>
@@ -146,11 +148,9 @@ export default function SplashScreen({ onFinish }: Props) {
 
 const styles = StyleSheet.create({
   container: { 
-    flex: 1, 
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center', 
     justifyContent: 'center', 
-    position: 'absolute', 
-    top: 0, left: 0, right: 0, bottom: 0,
     zIndex: 9999 
   },
   blobBottom: { 
@@ -172,7 +172,12 @@ const styles = StyleSheet.create({
     opacity: 0.05 
   },
   contentContainer: { alignItems: 'center', gap: 40 },
-  logoWrapper: { alignItems: 'center', justifyContent: 'center', width: 130, height: 130 },
+  logoWrapper: { 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    width: 140, 
+    height: 140 
+  },
   logoGlow: { 
     position: 'absolute', 
     width: 140, 
@@ -180,29 +185,28 @@ const styles = StyleSheet.create({
     borderRadius: 70, 
     opacity: 0.15 
   },
-  
-  // 🔥 CSS DA TÉCNICA MATRYOSHKA
   spinnerWrapper: {
     position: 'absolute',
     width: SPINNER_SIZE,
     height: SPINNER_SIZE,
-    // Centraliza o spinner exatamente no meio do logoWrapper (que tem 130)
-    top: (130 - SPINNER_SIZE) / 2,
-    left: (130 - SPINNER_SIZE) / 2,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   spinnerHalfClipper: {
     width: SPINNER_SIZE,
-    height: SPINNER_SIZE / 2, // Metade da altura corta o círculo no meio
+    height: SPINNER_SIZE / 2,
     overflow: 'hidden',
+    position: 'absolute',
+    top: 0,
   },
   solidRing: {
     width: SPINNER_SIZE,
     height: SPINNER_SIZE,
     borderRadius: SPINNER_SIZE / 2,
     borderWidth: SPINNER_THICKNESS,
-    // Nada de border color transparente aqui! Cor sólida garantida.
+    position: 'absolute',
+    top: 0,
   },
-
   logoContainer: { 
     width: 120, 
     height: 120, 

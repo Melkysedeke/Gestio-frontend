@@ -2,8 +2,10 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, 
   StatusBar, RefreshControl, Modal, TextInput, 
-  ActivityIndicator, KeyboardAvoidingView, Platform, Alert 
+  ActivityIndicator, KeyboardAvoidingView, Platform, Alert, TouchableWithoutFeedback, Keyboard 
 } from 'react-native';
+// 🚀 1. Importação da SafeArea
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect, router } from 'expo-router';
 import { Q } from '@nozbe/watermelondb';
@@ -25,6 +27,8 @@ export default function GoalsScreen() {
   const hideValues = useAuthStore(state => state.hideValues);
   
   const { colors, isDark } = useThemeColor();
+  // 🚀 2. Hook das margens seguras
+  const insets = useSafeAreaInsets();
 
   const [goals, setGoals] = useState<Goal[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
@@ -148,7 +152,8 @@ export default function GoalsScreen() {
   const activeWallet = wallets.find(w => w.id === user?.settings?.last_opened_wallet) || wallets[0];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    // 🚀 3. Container Raiz trocado para SafeAreaView focando no Topo
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       
       <MainHeader 
@@ -178,7 +183,8 @@ export default function GoalsScreen() {
           // @ts-ignore
           estimatedItemSize={160}
           extraData={[hideValues, isDark]}
-          contentContainerStyle={styles.listContent}
+          // 🚀 4. Padding Bottom dinâmico para evitar o botão "+" e a TabBar
+          contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom + 80, 120) }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={THEME_COLOR} />}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -192,7 +198,6 @@ export default function GoalsScreen() {
             const progress = target > 0 ? Math.min((current / target) * 100, 100) : 0;
             const isCompleted = progress >= 100;
             
-            // ✅ Resgatando e formatando as datas
             const createdAt = new Date(item.createdAt || (item as any)._raw.created_at || Date.now());
             const deadline = new Date(item.deadline || (item as any)._raw.deadline);
 
@@ -209,7 +214,6 @@ export default function GoalsScreen() {
                     <View style={styles.cardTitleContainer}>
                         <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
                         
-                        {/* ✅ Coluna de Datas Empilhadas */}
                         <View style={styles.datesColumn}>
                           <View style={styles.dateRow}>
                             <MaterialIcons name="calendar-today" size={10} color={colors.textSub} />
@@ -261,42 +265,58 @@ export default function GoalsScreen() {
         />
       </View>
 
-      <Modal visible={actionModalVisible} transparent animationType="fade">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
-            <View style={[styles.modalContentSmall, { backgroundColor: colors.card }]}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>
-                  {actionType === 'deposit' ? 'Guardar Dinheiro' : 'Resgatar Valor'}
-                </Text>
-                
-                <View style={[styles.infoBadge, { backgroundColor: infoBadgeBg }]}>
-                   <Text style={[styles.infoLabel, { color: colors.textSub }]}>
-                     {actionType === 'deposit' ? 'Falta para a meta: ' : 'Saldo atual no objetivo: '}
-                     <Text style={[styles.boldText, { color: colors.text }]}>
-                       {actionType === 'deposit' 
-                         ? (Number(selectedGoal?.targetAmount || 0) - Number(selectedGoal?.currentAmount || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                         : Number(selectedGoal?.currentAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                       }
-                     </Text>
-                   </Text>
-                </View>
+      <Modal visible={actionModalVisible} transparent animationType="fade" onRequestClose={() => setActionModalVisible(false)}>
+        {/* Envolvemos a tela toda para fechar o teclado ao clicar fora */}
+        <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setActionModalVisible(false); }}>
+          <View style={styles.modalOverlay}>
+            
+            {/* 🚀 5. KeyboardAvoidingView protegendo o modal de depósito no meio da tela */}
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <View style={[styles.modalContentSmall, { backgroundColor: colors.card }]}>
+                    <Text style={[styles.modalTitle, { color: colors.text }]}>
+                      {actionType === 'deposit' ? 'Guardar Dinheiro' : 'Resgatar Valor'}
+                    </Text>
+                    
+                    <View style={[styles.infoBadge, { backgroundColor: infoBadgeBg }]}>
+                      <Text style={[styles.infoLabel, { color: colors.textSub }]}>
+                        {actionType === 'deposit' ? 'Falta para a meta: ' : 'Saldo atual no objetivo: '}
+                        <Text style={[styles.boldText, { color: colors.text }]}>
+                          {actionType === 'deposit' 
+                            ? (Number(selectedGoal?.targetAmount || 0) - Number(selectedGoal?.currentAmount || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                            : Number(selectedGoal?.currentAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                          }
+                        </Text>
+                      </Text>
+                    </View>
 
-                <View style={[styles.amountWrapper, { backgroundColor: amountWrapperBg, borderColor: colors.border }]}>
-                    <Text style={[styles.currencySymbol, { color: colors.textSub }]}>R$</Text>
-                    <TextInput style={[styles.amountInput, { color: colors.text }]} value={getFormattedAmountInput()} onChangeText={handleAmountChange} keyboardType="numeric" autoFocus />
-                </View>
+                    <View style={[styles.amountWrapper, { backgroundColor: amountWrapperBg, borderColor: colors.border }]}>
+                        <Text style={[styles.currencySymbol, { color: colors.textSub }]}>R$</Text>
+                        <TextInput 
+                          style={[styles.amountInput, { color: colors.text }]} 
+                          value={getFormattedAmountInput()} 
+                          onChangeText={handleAmountChange} 
+                          keyboardType="numeric" 
+                          autoFocus 
+                        />
+                    </View>
 
-                <View style={styles.modalButtonsRow}>
-                    <TouchableOpacity style={styles.cancelBtn} onPress={() => setActionModalVisible(false)}>
-                      <Text style={[styles.boldText, { color: colors.textSub }]}>Cancelar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: actionType === 'deposit' ? THEME_COLOR : DANGER_COLOR }]} onPress={submitTransaction} disabled={submitting}>
-                        {submitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.confirmText}>Confirmar</Text>}
-                    </TouchableOpacity>
+                    <View style={styles.modalButtonsRow}>
+                        <TouchableOpacity style={styles.cancelBtn} onPress={() => setActionModalVisible(false)}>
+                          <Text style={[styles.boldText, { color: colors.textSub }]}>Cancelar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: actionType === 'deposit' ? THEME_COLOR : DANGER_COLOR }]} onPress={submitTransaction} disabled={submitting}>
+                            {submitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.confirmText}>Confirmar</Text>}
+                        </TouchableOpacity>
+                    </View>
                 </View>
-            </View>
-        </KeyboardAvoidingView>
+              </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
+
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -310,16 +330,16 @@ const styles = StyleSheet.create({
   summaryLabel: { fontSize: 10, fontWeight: '700'},
   summaryMiniValue: { fontSize: 12, fontWeight: '900' },
   listWrapper: { flex: 1 },
-  listContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100 },
+  listContent: { paddingHorizontal: 16, paddingTop: 8 }, // paddingBottom removido daqui para o inline style
   card: { borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1 },
-  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14, gap: 10 }, // Alterado para flex-start para melhor alinhamento
+  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14, gap: 10 }, 
   iconBox: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   cardTitleContainer: { flex: 1 },
   cardTitle: { fontSize: 14, fontWeight: '700' },
-  datesColumn: { gap: 2, marginTop: 4 }, // ✅ Estilo da coluna de datas
-  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 4 }, // ✅ Alinhamento ícone e texto
+  datesColumn: { gap: 2, marginTop: 4 }, 
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 4 }, 
   cardDate: { fontSize: 10 },
-  completedBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  completedBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start' }, // adicionado alignSelf
   completedText: { fontSize: 10, fontWeight: 'bold' },
   progressContainer: { marginBottom: 14 },
   progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },

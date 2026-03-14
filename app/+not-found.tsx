@@ -1,5 +1,7 @@
 import { Stack, useRouter } from 'expo-router';
-import { StyleSheet, Text, View, TouchableOpacity, Platform, Linking } from 'react-native'; 
+import { StyleSheet, Text, View, TouchableOpacity, Platform, Linking, StatusBar } from 'react-native'; 
+// 🚀 1. Importações da SafeArea
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import SubHeader from '@/components/SubHeader';
@@ -7,6 +9,8 @@ import SubHeader from '@/components/SubHeader';
 export default function NotFoundScreen() {
   const { colors, isDark } = useThemeColor();
   const router = useRouter();
+  // 🚀 2. Hook de insets
+  const insets = useSafeAreaInsets();
 
   // Cores dinâmicas para o fundo da tela
   const backgroundColor = isDark ? '#111921' : '#f6f7f8';
@@ -14,15 +18,16 @@ export default function NotFoundScreen() {
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      {/* 🚀 Removemos o SafeAreaView e deixamos uma View normal com flex: 1 */}
-      <View style={[styles.container, { backgroundColor }]}>
+      {/* 🚀 3. SafeAreaView protegendo o topo */}
+      <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top']}>
         
-        {/* Header (O SubHeader cuida do SafeArea do topo sozinho) */}
+        {/* Header */}
         <SubHeader title="Eita!" />
 
         {/* Main Content */}
-        <View style={styles.main}>
+        <View style={[styles.main, { paddingBottom: Math.max(insets.bottom, 20) }]}>
           
           {/* Illustration Area */}
           <View style={styles.illustrationContainer}>
@@ -56,7 +61,7 @@ export default function NotFoundScreen() {
             style={[
               styles.button, 
               { 
-                backgroundColor: colors.primary, // Garante o fundo Azul
+                backgroundColor: colors.primary, 
                 shadowColor: colors.primary 
               }
             ]}
@@ -75,7 +80,7 @@ export default function NotFoundScreen() {
           </TouchableOpacity>
         </View>
 
-      </View>
+      </SafeAreaView>
     </>
   );
 }

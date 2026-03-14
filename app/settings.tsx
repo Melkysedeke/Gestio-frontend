@@ -9,15 +9,16 @@ import {
   Alert,
   StatusBar,
   ActivityIndicator, 
-} from 'react-native'
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router'; 
 import * as ImagePicker from 'expo-image-picker';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuthStore } from '../src/stores/authStore'; 
 import { useThemeColor } from '@/hooks/useThemeColor'; 
 import { useThemeStore } from '../src/stores/themeStore';  
-import api from '../src/services/api'; // 🚀 Importação da API
+import api from '../src/services/api'; 
 
 import SubHeader from '@/components/SubHeader';
 import UserAvatar from '../components/UserAvatar'; 
@@ -30,6 +31,7 @@ export default function SettingsScreen() {
   
   const isGuest = user?.email?.includes('@local');
   const { colors, isDark } = useThemeColor();
+  const insets = useSafeAreaInsets();
 
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
@@ -51,7 +53,6 @@ export default function SettingsScreen() {
     }
 
     try {
-      // Pedir permissão (Boa prática)
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (permissionResult.granted === false) {
@@ -60,10 +61,10 @@ export default function SettingsScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'], // 🚀 Resolve o aviso amarelo do Expo!
+        mediaTypes: ['images'], 
         allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.5, // Podemos subir a qualidade pois não usaremos Base64 pesado
+        aspect: [1, 1], // Força o corte quadrado 1:1 na galeria
+        quality: 0.5, 
       });
 
       if (!result.canceled && result.assets[0].uri) {
@@ -72,12 +73,9 @@ export default function SettingsScreen() {
         const localUri = result.assets[0].uri;
         const filename = localUri.split('/').pop() || 'avatar.jpg';
         
-        // Descobre se é .jpg, .png, etc para o backend saber lidar
         const match = /\.(\w+)$/.exec(filename);
         const type = match ? `image/${match[1]}` : `image/jpeg`;
 
-        // 🚀 A MÁGICA: Empacotando como Formulário Físico (FormData)
-        // É exatamente isso que o "upload.single('avatar')" do seu Multer espera ler!
         const formData = new FormData();
         formData.append('avatar', {
           uri: localUri,
@@ -85,7 +83,6 @@ export default function SettingsScreen() {
           type
         } as any);
 
-        // 🚀 Disparando para a sua API com o cabeçalho correto
         const response = await api.patch('/users/avatar', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
@@ -93,8 +90,6 @@ export default function SettingsScreen() {
         });
 
         const newAvatarUrl = response.data.avatar;
-
-        // Atualiza o Zustand com a URL oficial que voltou do Supabase!
         await updateUserSetting({ avatar: newAvatarUrl });
       }
     } catch (error: any) {
@@ -115,13 +110,18 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const MenuItem = ({ icon, label, isDestructive = false, onPress, showArrow = true }: any) => {
+  const MenuItem = ({ icon, label, isDestructive = false, onPress, showArrow = true, rightElement }: any) => {
     const iconBoxBg = isDestructive 
       ? styles.menuIconBoxDestructive.backgroundColor 
       : (isDark ? 'rgba(23, 115, 207, 0.1)' : '#f0f9ff');
 
     return (
-      <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
+      <TouchableOpacity 
+        style={styles.menuItem} 
+        onPress={onPress} 
+        activeOpacity={0.7}
+        disabled={!onPress}
+      >
         <View style={[styles.menuIconBox, { backgroundColor: iconBoxBg }]}>
           <MaterialIcons 
               name={icon} 
@@ -135,22 +135,27 @@ export default function SettingsScreen() {
           ]}>
           {label}
         </Text>
-        {showArrow && <MaterialIcons name="chevron-right" size={24} color={colors.textSub} />}
+        {rightElement ? rightElement : (showArrow && <MaterialIcons name="chevron-right" size={24} color={colors.textSub} />)}
       </TouchableOpacity>
     );
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       <Stack.Screen options={{ headerShown: false }} />
 
       <SubHeader title="Meu Perfil" />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 40) }]} 
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.userSection}>
+          
           <View style={styles.avatarContainer}>
-            <View style={[styles.avatarWrapper, { borderColor: colors.card }]}>
+            {/* 🚀 Ring corrigido para não amassar o Avatar */}
+            <View style={[styles.avatarRing, { borderColor: colors.card }]}>
               {isUploadingPhoto ? (
                 <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
                   <ActivityIndicator size="small" color={colors.primary} />
@@ -159,6 +164,7 @@ export default function SettingsScreen() {
                 <UserAvatar user={user} size={100} />
               )}
             </View>
+
             <TouchableOpacity 
               style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.background }]} 
               onPress={handleEditPhoto}
@@ -207,18 +213,19 @@ export default function SettingsScreen() {
             <MenuItem icon="notifications-none" label="Notificações" onPress={() => router.push('/UpdateNotifications')} />
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             
-            <View style={styles.menuItem}>
-              <View style={[styles.menuIconBox, { backgroundColor: isDark ? 'rgba(23, 115, 207, 0.1)' : '#f0f9ff' }]}>
-                <MaterialIcons name="dark-mode" size={22} color={colors.primary} />
-              </View>
-              <Text style={[styles.menuLabel, { color: colors.text }]}>Modo Escuro</Text>
-              <Switch 
+            <MenuItem 
+              icon="dark-mode" 
+              label="Modo Escuro" 
+              showArrow={false}
+              rightElement={
+                <Switch 
                   value={isDark} 
                   onValueChange={handleThemeSwitch} 
                   trackColor={{ false: colors.border, true: colors.primary }} 
                   thumbColor={"#FFF"} 
-              />
-            </View>
+                />
+              }
+            />
           </View>
         </View>
 
@@ -246,32 +253,44 @@ export default function SettingsScreen() {
 
         <Text style={[styles.versionText, { color: colors.textSub }]}>Versão 1.0.0 (Beta)</Text>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  // 🚀 Estilos do header antigo apagados
-  scrollContent: { paddingBottom: 40 },
+  scrollContent: { }, 
   userSection: { alignItems: 'center', marginTop: 24, marginBottom: 32 },
+  
   avatarContainer: { position: 'relative', marginBottom: 16 },
-  avatarWrapper: {
+  
+  // 🚀 O anel não tem mais overflow: hidden nem height/width fixo para não amassar a foto
+  avatarRing: {
+    padding: 2, 
+    borderRadius: 60, // Garantia de círculo perfeito independente do conteúdo
+    borderWidth: 4,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.15, 
+    shadowRadius: 4,
+    backgroundColor: 'transparent', 
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+
+  avatarPlaceholder: { 
     width: 100, 
     height: 100, 
     borderRadius: 50, 
-    borderWidth: 4,
-    overflow: 'hidden', 
-    elevation: 5,
-    shadowOffset: { width: 0, height: 2 }, 
-    shadowOpacity: 0.2, 
-    shadowRadius: 4,
+    alignItems: 'center', 
+    justifyContent: 'center' 
   },
-  avatarPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  
   editBadge: { 
     position: 'absolute', 
     bottom: 0, 
-    right: 0, 
+    right: -4, // Ajustado levemente para acomodar o novo ring
     width: 34, 
     height: 34, 
     borderRadius: 17, 
@@ -279,6 +298,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center', 
     borderWidth: 3 
   },
+  
   userName: { fontSize: 24, fontWeight: 'bold', marginBottom: 4 },
   userEmail: { fontSize: 14, marginBottom: 12 },
   guestBadge: { 

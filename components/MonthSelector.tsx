@@ -1,5 +1,6 @@
-import React, { useMemo, useRef, useEffect } from 'react'; // ✅ Adicionado useRef e useEffect
+import React, { useMemo, useRef, useEffect } from 'react';
 import { ScrollView, TouchableOpacity, Text, StyleSheet, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
 interface MonthSelectorProps {
@@ -8,8 +9,8 @@ interface MonthSelectorProps {
 }
 
 export default function MonthSelector({ selectedDate, onMonthChange }: MonthSelectorProps) {
-  const { colors } = useThemeColor();
-  const scrollViewRef = useRef<ScrollView>(null); // ✅ Referência para o Scroll
+  const { colors, isDark } = useThemeColor();
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const months = useMemo(() => {
     const list = [];
@@ -22,47 +23,62 @@ export default function MonthSelector({ selectedDate, onMonthChange }: MonthSele
     return list.reverse(); 
   }, []);
 
-  // ✅ Efeito para rolar para o final ao montar o componente
   useEffect(() => {
-    // Um pequeno timeout garante que o layout foi calculado antes do scroll
     const timer = setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+    }, 300); 
     return () => clearTimeout(timer);
   }, []);
+
+  const handlePress = (date: Date) => {
+    Haptics.selectionAsync();
+    onMonthChange(date);
+  };
 
   return (
     <View style={styles.container}>
       <ScrollView 
-        ref={scrollViewRef} // ✅ Atribui a referência
+        ref={scrollViewRef}
         horizontal 
         showsHorizontalScrollIndicator={false} 
         contentContainerStyle={styles.scrollContent}
+        decelerationRate="fast"
       >
         {months.map((date, index) => {
           const isSelected = 
             date.getMonth() === selectedDate.getMonth() && 
             date.getFullYear() === selectedDate.getFullYear();
 
-          const monthName = date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
-          const yearLabel = date.getFullYear() !== new Date().getFullYear() ? `'${String(date.getFullYear()).slice(-2)}` : '';
+          const monthName = date.toLocaleDateString('pt-BR', { month: 'short' })
+            .replace('.', '')
+            .substring(0, 3);
+            
+          const isCurrentYear = date.getFullYear() === new Date().getFullYear();
+          const yearLabel = !isCurrentYear ? `'${String(date.getFullYear()).slice(-2)}` : '';
 
           return (
             <TouchableOpacity 
-              key={index} 
-              activeOpacity={0.7}
+              key={`${date.getTime()}-${index}`} 
+              activeOpacity={0.8}
               style={[
                 styles.item, 
                 { 
-                  backgroundColor: isSelected ? colors.primary : colors.card, 
-                  borderColor: isSelected ? colors.primary : colors.border 
-                }
+                  backgroundColor: isSelected ? colors.primary : colors.card,
+                  borderColor: isSelected ? colors.primary : colors.border,
+                },
+                !isSelected && isDark && { backgroundColor: '#1E293B' }
               ]}
-              onPress={() => onMonthChange(date)}
+              onPress={() => handlePress(date)}
             >
-              <Text style={[styles.text, { color: isSelected ? '#FFF' : colors.textSub }]}>
-                {monthName.charAt(0).toUpperCase() + monthName.slice(1)} {yearLabel}
+              <Text style={[styles.text, { color: isSelected ? '#FFF' : colors.text }]}>
+                {monthName.charAt(0).toUpperCase() + monthName.slice(1)}
               </Text>
+              
+              {yearLabel ? (
+                <Text style={[styles.yearText, { color: isSelected ? 'rgba(255,255,255,0.7)' : colors.textSub }]}>
+                  {yearLabel}
+                </Text>
+              ) : null}
             </TouchableOpacity>
           );
         })}
@@ -72,15 +88,37 @@ export default function MonthSelector({ selectedDate, onMonthChange }: MonthSele
 }
 
 const styles = StyleSheet.create({
-  container: { marginBottom: 4 },
-  scrollContent: { gap: 10, paddingRight: 20 },
-  item: { 
-    paddingHorizontal: 16, 
-    paddingVertical: 8, 
-    borderRadius: 20, 
-    borderWidth: 1,
-    minWidth: 70,
-    alignItems: 'center'
+  container: { 
+    // marginTop: 2,
+    // marginBottom: 2,
   },
-  text: { fontSize: 13, fontWeight: '700' },
+  scrollContent: { 
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    // paddingVertical: 2,
+  },
+  item: { 
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    paddingHorizontal: 14,
+    paddingVertical: 6, 
+    borderRadius: 20, 
+    borderWidth: 1.5,
+    marginRight: 8,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  text: { 
+    fontSize: 13, // Ajuste fino no tamanho
+    fontWeight: '700',
+    textTransform: 'capitalize'
+  },
+  yearText: {
+    fontSize: 9,
+    fontWeight: '600',
+    marginLeft: 3,
+  }
 });

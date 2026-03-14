@@ -9,6 +9,8 @@ import {
   View,
   StatusBar
 } from 'react-native';
+// 🚀 1. Importações da SafeArea
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 
@@ -18,7 +20,7 @@ import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor'; 
 
 // Componentes
-import SubHeader from '@/components/SubHeader'; // 🚀 Nosso SubHeader!
+import SubHeader from '@/components/SubHeader'; 
 import CreateWalletModal from '../components/CreateWalletModal';
 import EditWalletModal from '../components/EditWalletModel'; 
 
@@ -28,6 +30,8 @@ export default function MyWalletsScreen() {
   const hideValues = useAuthStore(state => state.hideValues); 
   
   const { colors, isDark } = useThemeColor();
+  // 🚀 2. Hook das margens seguras
+  const insets = useSafeAreaInsets();
   
   const [wallets, setWallets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,7 +111,6 @@ export default function MyWalletsScreen() {
     );
   }
 
-  // 🚀 Definindo o botão extra da direita
   const headerRightButton = (
     <TouchableOpacity 
       onPress={() => setCreateVisible(true)} 
@@ -119,10 +122,10 @@ export default function MyWalletsScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    // 🚀 3. Container Raiz trocado para SafeAreaView com foco no Topo
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      {/* 🚀 O SubHeader substituindo o SafeAreaView antigo */}
       <SubHeader 
         title="Minhas Carteiras" 
         rightComponent={headerRightButton} 
@@ -131,7 +134,8 @@ export default function MyWalletsScreen() {
       <FlatList 
         data={wallets}
         keyExtractor={item => item.id}
-        contentContainerStyle={styles.list}
+        // 🚀 4. Padding Bottom dinâmico
+        contentContainerStyle={[styles.list, { paddingBottom: Math.max(insets.bottom + 20, 40) }]}
         extraData={[user?.settings?.last_opened_wallet, hideValues]} 
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
@@ -225,7 +229,7 @@ export default function MyWalletsScreen() {
           onSuccess={fetchWallets} 
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -238,7 +242,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center', 
     alignItems: 'center' 
   },
-  // 🚀 O botão de adição com alinhamento à direita (o SubHeader cuida do resto)
   addButton: { 
     padding: 4,
     alignItems: 'flex-end',
@@ -246,7 +249,7 @@ const styles = StyleSheet.create({
   },
   list: { 
     padding: 20, 
-    paddingBottom: 40 
+    // paddingBottom removido daqui e passado inline
   },
   card: { 
     flexDirection: 'row', 

@@ -11,7 +11,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  TouchableWithoutFeedback,
+  Keyboard
 } from "react-native";
+// 🚀 1. Importação da SafeArea
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, router } from "expo-router";
 import { Q } from "@nozbe/watermelondb";
@@ -32,6 +36,8 @@ export default function DebtsScreen() {
   const { user } = useAuthStore();
   const hideValues = useAuthStore(state => state.hideValues); 
   const { colors, isDark } = useThemeColor();
+  // 🚀 2. Hook das margens seguras
+  const insets = useSafeAreaInsets();
 
   const [debts, setDebts] = useState<Debt[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
@@ -153,7 +159,8 @@ export default function DebtsScreen() {
   const activeWallet = wallets.find((w) => w.id === user?.settings?.last_opened_wallet) || wallets[0];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    // 🚀 3. Container Raiz trocado para SafeAreaView focando no Topo
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       
       <MainHeader 
@@ -201,7 +208,8 @@ export default function DebtsScreen() {
           // @ts-ignore
           estimatedItemSize={130}
           extraData={[hideValues, isDark, activeTab]}
-          contentContainerStyle={styles.listPadding}
+          // 🚀 4. Padding Bottom dinâmico para o scroll respeitar a UI do sistema e a TabBar
+          contentContainerStyle={[styles.listPadding, { paddingBottom: Math.max(insets.bottom + 80, 120) }]}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <MaterialIcons name="search-off" size={40} color={colors.textSub} />
@@ -215,7 +223,6 @@ export default function DebtsScreen() {
             const progress = total > 0 ? Math.min(paid / total, 1) : 0;
             const isFinished = item.isPaid || (item as any)._raw.is_paid;
             
-            // ✅ Resgatando a data de criação e formatação
             const createdAt = new Date(item.createdAt || (item as any)._raw.created_at || Date.now());
             const dueDate = new Date(item.dueDate || (item as any)._raw.due_date);
             const isOverdue = !isFinished && dueDate < new Date(new Date().setHours(0, 0, 0, 0));
@@ -252,7 +259,6 @@ export default function DebtsScreen() {
                 </View>
 
                 <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
-                  {/* ✅ Nova coluna de datas empilhadas */}
                   <View style={styles.datesColumn}>
                     <View style={styles.dateRow}>
                       <MaterialIcons name="calendar-today" size={11} color={colors.textSub} />
@@ -287,37 +293,44 @@ export default function DebtsScreen() {
         />
       </View>
 
-      <Modal visible={depositModalVisible} transparent animationType="fade">
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Abater Valor</Text>
-            <Text style={[styles.modalSubtitle, { color: colors.textSub }]}>{selectedDebt?.title}</Text>
-            
-            <View style={[styles.infoBadge, { backgroundColor: infoBadgeBg }]}>
-                <Text style={[styles.infoBadgeText, { color: colors.textSub }]}>
-                Restante: <Text style={[styles.boldText, { color: colors.text }]}>
-                    {Number(Number(selectedDebt?.amount || 0) - Number(selectedDebt?.totalPaid || (selectedDebt as any)?._raw.total_paid || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                </Text>
-                </Text>
-            </View>
+      <Modal visible={depositModalVisible} transparent animationType="fade" onRequestClose={() => setDepositModalVisible(false)}>
+        {/* 🚀 5. Dispensa do teclado ao clicar no fundo */}
+        <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setDepositModalVisible(false); }}>
+          <View style={styles.modalOverlay}>
+            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>Abater Valor</Text>
+                  <Text style={[styles.modalSubtitle, { color: colors.textSub }]}>{selectedDebt?.title}</Text>
+                  
+                  <View style={[styles.infoBadge, { backgroundColor: infoBadgeBg }]}>
+                      <Text style={[styles.infoBadgeText, { color: colors.textSub }]}>
+                      Restante: <Text style={[styles.boldText, { color: colors.text }]}>
+                          {Number(Number(selectedDebt?.amount || 0) - Number(selectedDebt?.totalPaid || (selectedDebt as any)?._raw.total_paid || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </Text>
+                      </Text>
+                  </View>
 
-            <View style={[styles.inputWrapper, { backgroundColor: inputWrapperBg, borderColor: colors.border }]}>
-              <Text style={[styles.currencyPrefix, { color: colors.textSub }]}>R$</Text>
-              <TextInput style={[styles.modalInput, { color: colors.text }]} value={getFormattedAmountInput()} onChangeText={handleAmountChange} keyboardType="numeric" autoFocus />
-            </View>
+                  <View style={[styles.inputWrapper, { backgroundColor: inputWrapperBg, borderColor: colors.border }]}>
+                    <Text style={[styles.currencyPrefix, { color: colors.textSub }]}>R$</Text>
+                    <TextInput style={[styles.modalInput, { color: colors.text }]} value={getFormattedAmountInput()} onChangeText={handleAmountChange} keyboardType="numeric" autoFocus />
+                  </View>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setDepositModalVisible(false)}>
-                  <Text style={[styles.boldText, { color: colors.textSub }]}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: ACTIVE_TAB_COLOR }]} onPress={confirmDeposit} disabled={isSubmitting}>
-                {isSubmitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.confirmBtnText}>Confirmar</Text>}
-              </TouchableOpacity>
-            </View>
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity style={styles.cancelBtn} onPress={() => setDepositModalVisible(false)}>
+                        <Text style={[styles.boldText, { color: colors.textSub }]}>Cancelar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: ACTIVE_TAB_COLOR }]} onPress={confirmDeposit} disabled={isSubmitting}>
+                      {isSubmitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.confirmBtnText}>Confirmar</Text>}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </KeyboardAvoidingView>
           </View>
-        </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -332,7 +345,7 @@ const styles = StyleSheet.create({
   summaryMiniLabel: { fontSize: 10, fontWeight: '700' },
   summaryMiniValue: { fontSize: 12, fontWeight: '900' },
   listWrapper: { flex: 1 },
-  listPadding: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100 },
+  listPadding: { paddingHorizontal: 16, paddingTop: 8 }, // paddingBottom removido daqui e passado inline
   card: { borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1 },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   cardHeaderLeft: { flex: 1 },
@@ -346,7 +359,7 @@ const styles = StyleSheet.create({
   progressFill: { height: "100%", borderRadius: 3 },
   progressText: { fontSize: 10, fontWeight: "bold", width: 30 },
   cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTopWidth: 1 },
-  datesColumn: { gap: 4, justifyContent: 'center' }, // ✅ Estilo adicionado para empilhar as datas
+  datesColumn: { gap: 4, justifyContent: 'center' }, 
   dateRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   dateText: { fontSize: 11, fontWeight: '600' },
   paidBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },

@@ -10,10 +10,13 @@ import {
   Alert,
   TouchableWithoutFeedback,
   Keyboard,
-  KeyboardAvoidingView, // ✅ Novo import
-  Platform              // ✅ Novo import
+  KeyboardAvoidingView,
+  Platform 
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+// 🚀 1. Importação do hook de SafeArea
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { database } from '../src/database'; 
 import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -32,6 +35,8 @@ export default function CreateWalletModal({ visible, onClose, onSuccess }: Props
   const updateUserSetting = useAuthStore(state => state.updateUserSetting);
 
   const { colors, isDark } = useThemeColor();
+  // 🚀 2. Instanciando o insets
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (visible) {
@@ -80,17 +85,25 @@ export default function CreateWalletModal({ visible, onClose, onSuccess }: Props
       visible={visible}
       onRequestClose={onClose}
     >
-      {/* ✅ ENVOLVENDO TUDO COM KeyboardAvoidingView */}
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
-        // No iOS usamos 'padding'. No Android em modais transparentes, 'padding' ou 'height' costumam funcionar melhor.
-        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} 
-      >
-        <TouchableWithoutFeedback onPress={onClose}>
-          <View style={styles.overlay}>
-            
+      {/* Clica fora do modal fecha o teclado e o modal */}
+      <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); onClose(); }}>
+        <View style={styles.overlay}>
+          
+          {/* 🚀 3. KeyboardAvoidingView englobando APENAS o conteúdo para não quebrar o fundo */}
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} 
+            style={{ width: '100%' }}
+          >
+            {/* Evita que o clique DENTRO do modal feche ele */}
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+              <View style={[
+                  styles.modalContent, 
+                  { 
+                    backgroundColor: colors.card,
+                    // 🚀 4. Padding inferior dinâmico para respeitar a barra do sistema
+                    paddingBottom: Math.max(insets.bottom + 20, 24) 
+                  }
+                ]}>
                   
                   <View style={[styles.handleBar, { backgroundColor: colors.border }]} />
                   
@@ -112,7 +125,7 @@ export default function CreateWalletModal({ visible, onClose, onSuccess }: Props
                               color: colors.text 
                           }
                       ]}
-                      placeholder="Ex: Nubank, Carteira Física, Investimentos..."
+                      placeholder="Ex: Nubank, Física, Investimentos..."
                       placeholderTextColor={colors.textSub}
                       value={name}
                       onChangeText={setName}
@@ -136,9 +149,10 @@ export default function CreateWalletModal({ visible, onClose, onSuccess }: Props
 
               </View>
             </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+          
+        </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }
@@ -153,7 +167,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
-    paddingBottom: 40, 
+    // paddingBottom estático foi removido daqui e passado para o inline style
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,

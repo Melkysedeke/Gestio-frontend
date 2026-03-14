@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Image } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useThemeColor } from '@/hooks/useThemeColor'; // 🚀 Hook do Tema!
+import { useThemeColor } from '@/hooks/useThemeColor';
 
 interface UserAvatarProps {
   user: {
@@ -12,47 +12,66 @@ interface UserAvatarProps {
 }
 
 export default function UserAvatar({ user, size = 40 }: UserAvatarProps) {
-  // Chamamos o hook global para pegar as cores atualizadas
   const { colors, isDark } = useThemeColor();
 
-  const dynamicStyles = {
-    container: {
-      width: '100%',  // Ocupa 100% da "caixa" (TouchableOpacity) do elemento pai
-      height: '100%', // Isso permite que o MainHeader controle o tamanho geral 
-      borderRadius: size / 2, 
-      justifyContent: 'center',
-      alignItems: 'center',
-      overflow: 'hidden',
-    } as const,
-    initialText: {
-      fontSize: size * 0.4, 
-      fontWeight: 'bold',
-      color: colors.primary,
-    } as const,
+  const containerStyle = {
+    width: size,
+    height: size,
+    borderRadius: size / 2, // 🚀 Círculo perfeito! Acaba com o visual "troncho"
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    overflow: 'hidden' as const,
+    
+    // 🚀 A MÁGICA CONTRA O ACHATAMENTO:
+    // Garante que nenhum elemento pai consiga esmagar ou esticar o avatar
+    flexShrink: 0, 
+    flexGrow: 0,
+    aspectRatio: 1, 
+  };
+
+  const getInitials = (name?: string) => {
+    if (!name) return '?';
+    const nameParts = name.trim().split(' ');
+    if (nameParts.length > 1) {
+      return `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
   };
 
   if (user?.avatar && user.avatar !== 'default' && !user.avatar.includes('@local')) {
     return (
-      <Image 
-        source={{ uri: user.avatar }} 
-        style={dynamicStyles.container}
-        resizeMode="cover"
-      />
+      <View style={containerStyle}>
+        <Image 
+          source={{ uri: user.avatar }} 
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="cover"
+        />
+      </View>
     );
   }
 
-  if (user?.name) {
+  if (user?.name && user.name.toLowerCase() !== 'visitante') {
     return (
-      <View style={[dynamicStyles.container, { backgroundColor: isDark ? '#334155' : '#e2e8f0' }]}>
-        <Text style={dynamicStyles.initialText}>
-          {user.name.charAt(0).toUpperCase()}
+      <View style={[
+        containerStyle, 
+        { backgroundColor: isDark ? 'rgba(23, 115, 207, 0.15)' : '#e0f2fe' } 
+      ]}>
+        <Text style={{ 
+          fontSize: size * 0.4, 
+          fontWeight: '700', 
+          color: colors.primary 
+        }}>
+          {getInitials(user.name)}
         </Text>
       </View>
     );
   }
 
   return (
-    <View style={[dynamicStyles.container, { backgroundColor: colors.border }]}>
+    <View style={[
+      containerStyle, 
+      { backgroundColor: isDark ? colors.card : '#f1f5f9' }
+    ]}>
       <MaterialIcons name="person" size={size * 0.6} color={colors.textSub} />
     </View>
   );

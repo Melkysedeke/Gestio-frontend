@@ -8,8 +8,12 @@ import {
   Alert, 
   ActivityIndicator, 
   ScrollView,
-  StatusBar
+  StatusBar,
+  KeyboardAvoidingView, // 🚀 Importado
+  Platform // 🚀 Importado
 } from 'react-native';
+// 🚀 1. Importações da SafeArea
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuthStore } from '../src/stores/authStore';
@@ -22,6 +26,8 @@ export default function SecurityScreen() {
   const { user, purgeDatabase } = useAuthStore();
   const isGuest = user?.email?.includes('@local');
   const { colors, isDark } = useThemeColor();
+  // 🚀 2. Hook de insets
+  const insets = useSafeAreaInsets();
 
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -29,8 +35,6 @@ export default function SecurityScreen() {
 
   const [showOld, setShowOld] = useState(false);
   const [showNew, setShowNew] = useState(false);
-  // O showConfirm não estava sendo usado no seu código original, mas vou manter caso você queira usar
-  // const [showConfirm, setShowConfirm] = useState(false); 
 
   const [loading, setLoading] = useState(false);
 
@@ -66,14 +70,12 @@ export default function SecurityScreen() {
           onPress: async () => {
             setLoading(true);
             try {
-              // 🚀 1. O Guarda de Trânsito: Se for convidado, APENAS limpa o banco local e sai.
               if (isGuest) {
                 await purgeDatabase(); 
                 router.replace('/Welcome');
-                return; // O return impede que o código continue e bata na API abaixo
+                return; 
               }
 
-              // 🚀 2. Se NÃO for convidado (Conta Oficial), deleta no servidor primeiro e depois limpa o celular.
               await api.delete('/users/delete'); 
               await purgeDatabase(); 
               router.replace('/Welcome');
@@ -108,92 +110,98 @@ export default function SecurityScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    // 🚀 3. SafeAreaView focado no topo
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       
-      {/* 🚀 O SubHeader substitui o seu View antigo. Ele já tem o padding e SafeArea embutido. */}
       <SubHeader title="Segurança" />
 
-      {/* 🚀 ScrollView configurado para empurrar o conteúdo adequadamente */}
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      {/* 🚀 4. KeyboardAvoidingView protegendo o formulário de senhas */}
+      <KeyboardAvoidingView 
+        style={styles.keyboardView} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {!isGuest && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Alterar Senha</Text>
-            
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textSub }]}>Senha Atual</Text>
-              <PasswordInput 
-                value={oldPassword} 
-                onChange={setOldPassword} 
-                placeholder="Sua senha atual" 
-                show={showOld} 
-                onToggle={() => setShowOld(!showOld)} 
-              />
-            </View>
-            
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textSub }]}>Nova Senha</Text>
-              <PasswordInput 
-                value={newPassword} 
-                onChange={setNewPassword} 
-                placeholder="Mínimo 6 caracteres" 
-                show={showNew} 
-                onToggle={() => setShowNew(!showNew)} 
-              />
-            </View>
+        <ScrollView 
+          // 🚀 5. Padding Bottom dinâmico
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom + 20, 40) }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {!isGuest && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Alterar Senha</Text>
+              
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.textSub }]}>Senha Atual</Text>
+                <PasswordInput 
+                  value={oldPassword} 
+                  onChange={setOldPassword} 
+                  placeholder="Sua senha atual" 
+                  show={showOld} 
+                  onToggle={() => setShowOld(!showOld)} 
+                />
+              </View>
+              
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.textSub }]}>Nova Senha</Text>
+                <PasswordInput 
+                  value={newPassword} 
+                  onChange={setNewPassword} 
+                  placeholder="Mínimo 6 caracteres" 
+                  show={showNew} 
+                  onToggle={() => setShowNew(!showNew)} 
+                />
+              </View>
 
-            {/* O campo confirmar senha estava faltando, adicionei ele para a lógica fazer sentido */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.textSub }]}>Confirmar Nova Senha</Text>
-              <PasswordInput 
-                value={confirmPassword} 
-                onChange={setConfirmPassword} 
-                placeholder="Repita a nova senha" 
-                show={showNew} // Reutilizando o toggle do showNew para facilitar
-                onToggle={() => setShowNew(!showNew)} 
-              />
-            </View>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.label, { color: colors.textSub }]}>Confirmar Nova Senha</Text>
+                <PasswordInput 
+                  value={confirmPassword} 
+                  onChange={setConfirmPassword} 
+                  placeholder="Repita a nova senha" 
+                  show={showNew} 
+                  onToggle={() => setShowNew(!showNew)} 
+                />
+              </View>
 
+              <TouchableOpacity 
+                style={[styles.saveButton, { backgroundColor: colors.primary }]} 
+                onPress={handleUpdatePassword}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveButtonText}>Atualizar Senha</Text>}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <View style={[
+            styles.dangerZone, 
+            { 
+              marginTop: isGuest ? 0 : 40,
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#fff1f1', 
+              borderColor: isDark ? '#7f1d1d' : '#fecaca' 
+            }
+          ]}>
+            <View style={styles.dangerHeader}>
+              <MaterialIcons name="report-problem" size={20} color={colors.danger} />
+              <Text style={[styles.dangerTitle, { color: colors.danger }]}>Zona de Perigo</Text>
+            </View>
+            <Text style={[styles.dangerDesc, { color: isDark ? '#fca5a5' : '#7f1d1d' }]}>
+              Excluir a conta removerá permanentemente todos os dados financeiros salvos neste dispositivo.
+            </Text>
             <TouchableOpacity 
-              style={[styles.saveButton, { backgroundColor: colors.primary }]} 
-              onPress={handleUpdatePassword}
-              disabled={loading}
+              style={[styles.deleteButton, { backgroundColor: colors.card, borderColor: colors.danger }]} 
+              onPress={handleDeleteAccount}
               activeOpacity={0.8}
             >
-              {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveButtonText}>Atualizar Senha</Text>}
+              <Text style={[styles.deleteButtonText, { color: colors.danger }]}>Excluir todos os dados</Text>
             </TouchableOpacity>
           </View>
-        )}
 
-        <View style={[
-          styles.dangerZone, 
-          { 
-            marginTop: isGuest ? 0 : 40, // Remove o gap gigante se for guest
-            backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#fff1f1', 
-            borderColor: isDark ? '#7f1d1d' : '#fecaca' 
-          }
-        ]}>
-          <View style={styles.dangerHeader}>
-            <MaterialIcons name="report-problem" size={20} color={colors.danger} />
-            <Text style={[styles.dangerTitle, { color: colors.danger }]}>Zona de Perigo</Text>
-          </View>
-          <Text style={[styles.dangerDesc, { color: isDark ? '#fca5a5' : '#7f1d1d' }]}>
-            Excluir a conta removerá permanentemente todos os dados financeiros salvos neste dispositivo.
-          </Text>
-          <TouchableOpacity 
-            style={[styles.deleteButton, { backgroundColor: colors.card, borderColor: colors.danger }]} 
-            onPress={handleDeleteAccount}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.deleteButtonText, { color: colors.danger }]}>Excluir todos os dados</Text>
-          </TouchableOpacity>
-        </View>
-
-      </ScrollView>
-    </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -201,9 +209,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  keyboardView: {
+    flex: 1,
+  },
   scrollContent: {
     padding: 20,
-    paddingBottom: 40, // Espaço extra no fim do scroll
+    // paddingBottom removido para inline
   },
   section: {
     marginBottom: 10,
@@ -226,7 +237,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', 
     borderWidth: 1, 
     borderRadius: 12,
-    overflow: 'hidden' // Garante que o input não vaze o raio da borda
+    overflow: 'hidden' 
   },
   passwordInput: { 
     flex: 1, 
@@ -234,7 +245,7 @@ const styles = StyleSheet.create({
     fontSize: 16 
   },
   eyeIcon: { 
-    padding: 14, // Maior área de toque
+    padding: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -243,7 +254,7 @@ const styles = StyleSheet.create({
     borderRadius: 12, 
     alignItems: 'center', 
     marginTop: 10,
-    elevation: 2, // Sombra sutil para o botão de ação principal
+    elevation: 2, 
   },
   saveButtonText: { 
     color: '#FFF', 

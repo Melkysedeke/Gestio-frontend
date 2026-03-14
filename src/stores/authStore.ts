@@ -151,51 +151,58 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signInAsGuest: async (name: string) => {
-    try {
-      let newUser: User | undefined;
-      await AsyncStorage.removeItem(TOKEN_KEY);
-
-      await database.write(async () => {
-        const usersCollection = database.get<User>('users');
-        newUser = await usersCollection.create((u: any) => {
-          u.name = name;
-          u.email = `guest_${Date.now()}@local`;
-          u.avatar = 'default';
-          u.password = '';
-          u.settings = { notifications: true, last_opened_wallet: null };
-        });
+ signInAsGuest: async (name: string) => {
+  try {
+    const usersCollection = database.get<User>('users');
+    const existingUsers = await usersCollection.query().fetch();
+    if (existingUsers.length > 0) {
+      const currentUser = existingUsers[0];
+      const walletsCount = await database.get('wallets').query().fetchCount();
+      set({ 
+        user: currentUser, 
+        token: null, 
+        hasWallets: walletsCount > 0 
       });
-
-      await get().runSeed();
-      if (newUser) set({ user: newUser, token: null, hasWallets: false });
-    } catch (error) {
-      console.error('Erro ao criar usuário local:', error);
+      return;
     }
-  },
+    let newUser: User | undefined;
+    await AsyncStorage.removeItem(TOKEN_KEY);
+    await database.write(async () => {
+      newUser = await usersCollection.create((u: any) => {
+        u.name = name;
+        u.email = `guest_${Date.now()}@local`;
+        u.avatar = 'default';
+        u.password = '';
+        u.settings = { notifications: true, last_opened_wallet: null };
+      });
+    });
+    await get().runSeed();
+    if (newUser) {
+      set({ user: newUser, token: null, hasWallets: false });
+    }
+  } catch (error) {
+    console.error('Erro ao criar usuário local:', error);
+  }
+},
 
   updateUserSetting: async (newSettings: Partial<any>) => {
     const currentUser = get().user;
     if (!currentUser) return;
 
     try {
-      // 🚀 1. Separa as colunas principais das configurações extra (theme, notifications)
       const { name, email, avatar, ...actualSettings } = newSettings;
 
       await database.write(async () => {
         await currentUser.update((u: any) => {
-          // Atualiza as colunas reais
           if (name) u.name = name;
           if (email) u.email = email;
           if (avatar) u.avatar = avatar;
           const oldSettings = u.settings || {};
-          // Object.keys garante que não sobrescrevemos com um objeto vazio se não houver settings novos
           if (Object.keys(actualSettings).length > 0) {
             u.settings = { ...oldSettings, ...actualSettings };
           }
         });
       });
-      // Atualiza o estado global
       if (actualSettings.theme) {
         useThemeStore.getState().setTheme(actualSettings.theme);
       }

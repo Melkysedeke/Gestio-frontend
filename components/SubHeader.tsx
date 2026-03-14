@@ -9,7 +9,7 @@ interface SubHeaderProps {
   title: string;
   showBack?: boolean;
   onBackPress?: () => void;
-  rightComponent?: React.ReactNode; // Para caso você queira colocar um botão "Salvar" à direita no futuro
+  rightComponent?: React.ReactNode; 
 }
 
 export default function SubHeader({ 
@@ -18,14 +18,18 @@ export default function SubHeader({
   onBackPress,
   rightComponent 
 }: SubHeaderProps) {
-  const { colors, isDark } = useThemeColor();
+  const { colors } = useThemeColor();
   const router = useRouter();
 
   const handleBack = () => {
     if (onBackPress) {
       onBackPress();
     } else {
-      router.back();
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)'); 
+      }
     }
   };
 
@@ -42,18 +46,19 @@ export default function SubHeader({
     >
       <View style={styles.headerContent}>
         
-        {/* Lado Esquerdo (Botão Voltar ou Espaço Vazio) */}
+        {/* Lado Esquerdo */}
         <View style={styles.sideContainer}>
-          {showBack ? (
+          {showBack && (
             <TouchableOpacity 
               onPress={handleBack}
               style={styles.iconButton}
               activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 20 }}
+              accessibilityRole="button"
+              accessibilityLabel="Voltar"
             >
               <MaterialIcons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
-          ) : (
-            <View style={styles.placeholderSpace} />
           )}
         </View>
 
@@ -62,14 +67,15 @@ export default function SubHeader({
           <Text 
             style={[styles.headerTitle, { color: colors.text }]}
             numberOfLines={1}
+            accessibilityRole="header"
           >
             {title}
           </Text>
         </View>
 
-        {/* Lado Direito (Componente extra ou Espaço Vazio para centralizar) */}
+        {/* Lado Direito */}
         <View style={[styles.sideContainer, { alignItems: 'flex-end' }]}>
-          {rightComponent ? rightComponent : <View style={styles.placeholderSpace} />}
+          {rightComponent}
         </View>
 
       </View>
@@ -81,7 +87,7 @@ const styles = StyleSheet.create({
   safeHeader: {
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 3 },
-      android: { elevation: 3 },
+      android: { elevation: 3 }, 
     }),
     borderBottomWidth: 1,
     zIndex: 100, 
@@ -91,10 +97,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    height: 70, // 🚀 A MESMA altura útil do MainHeader
+    height: 70, 
   },
   sideContainer: {
-    width: 50, // Fixamos a largura das laterais para garantir que o título fique 100% centralizado
+    width: 50, 
     justifyContent: 'center',
   },
   titleContainer: {
@@ -106,15 +112,12 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    alignItems: 'flex-start', // Alinha a seta à esquerda
+    alignItems: 'flex-start', 
     justifyContent: 'center',
+    marginLeft: -4,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-  },
-  placeholderSpace: {
-    width: 24,
-    height: 24,
   }
 });

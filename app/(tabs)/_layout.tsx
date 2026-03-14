@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-// ✅ Trocamos useSegments por usePathname
 import { Tabs, usePathname } from 'expo-router'; 
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,17 +12,14 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 export default function TabLayout() {
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
   
-  // ✅ Usamos o pathname para evitar o erro de Tuple do TypeScript
   const pathname = usePathname();
-  
   const hasWallets = useAuthStore(state => state.hasWallets);
   const { colors } = useThemeColor();
-  
   const insets = useSafeAreaInsets(); 
 
-  // ✅ Pega o nome da aba atual com segurança
-  const lastSegment = pathname.split('/').pop();
-  const currentTabName = lastSegment || 'index';
+  // 🚀 CORREÇÃO 1: Forçar minúsculo para a checagem funcionar e tratar o index (vazio)
+  const lastSegment = pathname.split('/').pop()?.toLowerCase() || 'index';
+  const currentTabName = lastSegment === '' ? 'index' : lastSegment;
   
   const validContexts = ['index', 'transactions', 'debts', 'goals'];
   const sheetContext = validContexts.includes(currentTabName) 
@@ -85,6 +81,7 @@ export default function TabLayout() {
           name="Add"
           options={{
             title: '',
+            // 🚀 REMOVE O href: null DAQUI
             tabBarIcon: () => null,
             tabBarButton: (props) => (
               <CustomTabBarButton
@@ -97,7 +94,7 @@ export default function TabLayout() {
           }}
           listeners={() => ({
             tabPress: (e) => {
-              e.preventDefault();
+              e.preventDefault(); // Impede de tentar navegar para a tela fantasma
               setActionSheetVisible(true);
             },
           })}

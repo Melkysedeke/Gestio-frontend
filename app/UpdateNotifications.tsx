@@ -2,6 +2,8 @@ import React from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, StatusBar 
 } from 'react-native';
+// 🚀 1. Importações da SafeArea
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -10,20 +12,22 @@ import SubHeader from '@/components/SubHeader';
 
 export default function NotificationsScreen() {
   const { colors, isDark } = useThemeColor();
+  // 🚀 2. Hook de insets
+  const insets = useSafeAreaInsets();
 
   // Constantes dinâmicas calculadas antes do return
   const iconCircleBg = isDark ? 'rgba(23, 115, 207, 0.1)' : '#f0f9ff';
   const badgeBg = isDark ? '#334155' : '#f1f5f9';
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    // 🚀 3. SafeAreaView protegendo o topo
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       
-      {/* HEADER PADRONIZADO */}
       <SubHeader title="Notificações" />
 
-      {/* CONTEÚDO DE BLOQUEIO / EM BREVE */}
-      <View style={styles.content}>
+      {/* 🚀 4. Padding bottom dinâmico na View centralizada */}
+      <View style={[styles.content, { paddingBottom: Math.max(insets.bottom + 20, 60) }]}>
         <View style={[styles.iconCircle, { backgroundColor: iconCircleBg }]}>
             <MaterialIcons name="construction" size={60} color={colors.primary} />
         </View>
@@ -51,7 +55,7 @@ export default function NotificationsScreen() {
           <Text style={styles.buttonText}>Voltar para o Início</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -59,13 +63,12 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1 
   },
-  // 🚀 Removidos os estilos de header antigos que não eram mais usados
   content: { 
     flex: 1, 
     alignItems: 'center', 
     justifyContent: 'center', 
     paddingHorizontal: 40,
-    paddingBottom: 60 
+    // paddingBottom foi removido para o estilo inline
   },
   iconCircle: {
     width: 120, 

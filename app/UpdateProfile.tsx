@@ -12,7 +12,9 @@ import {
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons'; // 🚀 Importado para o ícone de cadeado
+// 🚀 1. Importações da SafeArea
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialIcons } from '@expo/vector-icons'; 
 import { router } from 'expo-router';
 import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -25,6 +27,8 @@ export default function EditProfileScreen() {
   
   const isGuest = user?.email?.includes('@local');
   const { colors, isDark } = useThemeColor();
+  // 🚀 2. Hook de insets
+  const insets = useSafeAreaInsets();
 
   const [name, setName] = useState(user?.name || '');
   const [loading, setLoading] = useState(false);
@@ -54,7 +58,8 @@ export default function EditProfileScreen() {
   const buttonOpacity = loading ? 0.7 : 1;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    // 🚀 3. SafeAreaView focado no topo
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       <SubHeader title="Dados Pessoais" />
@@ -64,7 +69,7 @@ export default function EditProfileScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView 
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom + 20, 40) }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled" 
         >
@@ -92,7 +97,6 @@ export default function EditProfileScreen() {
               {isGuest && <Text style={[styles.guestBadge, { color: colors.primary }]}>Modo Convidado</Text>}
             </View>
             
-            {/* 🚀 Wrapper para o Input Desativado + Ícone */}
             <View style={[styles.disabledInputWrapper, { 
               backgroundColor: disabledBgColor, 
               borderColor: colors.border 
@@ -124,7 +128,7 @@ export default function EditProfileScreen() {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -137,7 +141,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: { 
     padding: 20, 
-    paddingBottom: 40,
     gap: 20, 
   },
   inputGroup: { 
@@ -163,13 +166,12 @@ const styles = StyleSheet.create({
     padding: 14, 
     fontSize: 16,
   },
-  /* 🚀 Estilos do campo desativado */
   disabledInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderRadius: 12,
-    paddingRight: 14, // Espaço para o ícone do cadeado
+    paddingRight: 14, 
   },
   inputDisabledText: {
     flex: 1,
