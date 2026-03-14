@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
 import { Stack, useRouter } from 'expo-router'; 
 import * as SplashScreenNative from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
@@ -12,6 +12,7 @@ import { useThemeStore } from '../src/stores/themeStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
 import AnimatedSplashScreen from '../components/SplashScreen'; 
+import SyncScreen from '../components/SyncScreen'; // 🚀 O componente de barra de progresso
 import { syncData } from '../src/services/SyncService';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
@@ -26,22 +27,24 @@ SplashScreenNative.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
-  const [isSyncingInitial, setIsSyncingInitial] = useState(false);
-  const [splashAnimationFinished, setSplashAnimationFinished] = useState(false);
+  const [splashFinished, setSplashFinished] = useState(false);
+  
+  // 🚀 Máquina de estados da sincronização: 'idle' | 'syncing' | 'done'
+  const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'done'>('idle');
+  // 🚀 Guarda o ID do usuário que já teve os dados sincronizados
+  const lastSyncedUserId = useRef<string | null>(null);
   
   const { user, token, loadStorageData, hapticsEnabled } = useAuthStore();
   const _hasHydrated = useThemeStore(state => state._hasHydrated);
   
   const router = useRouter();
-  const { colors, isDark } = useThemeColor();
-  
-  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { isDark } = useThemeColor();
 
   const [fontsLoaded] = useFonts({
     ...MaterialIcons.font,
   });
 
-  // 1. Carga de dados local inicial
+  // 1. Carga Básica (Storage & Fontes)
   useEffect(() => {
     async function prepare() {
       try {
@@ -55,71 +58,85 @@ export default function RootLayout() {
     prepare();
   }, [loadStorageData]);
 
-  // 2. Sincronização com Proteção de Tempo
+  // 2. O Interceptador de Sessão (A "Cortina")
+  const currentUserId = user?.id || null;
+  const isGuest = user?.email?.includes('@local');
+
   useEffect(() => {
-    async function performInitialSync() {
-      const isGuest = user?.email?.includes('@local');
+    if (!appIsReady) return;
 
-      if (appIsReady && user && token && !isGuest) {
-        setIsSyncingInitial(true);
+    if (!currentUserId) {
+      lastSyncedUserId.current = null;
+      setSyncState('idle');
+      return;
+    }
 
-        syncTimeoutRef.current = setTimeout(() => {
-          setIsSyncingInitial(false);
-          console.log("⏳ Sync demorando... liberando modo offline.");
-        }, 8000);
+    const needsSync = !isGuest && token && lastSyncedUserId.current !== currentUserId;
 
+    if (needsSync && syncState !== 'syncing') {
+      setSyncState('syncing');
+
+      const doInitialSync = async () => {
+        const startTime = Date.now(); // 🚀 Marca a hora que começou
         try {
-          await syncData();
-          if (hapticsEnabled) {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          }
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
+          await Promise.race([syncData(), timeoutPromise]);
+          
+          if (hapticsEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (error) {
-          console.log("Sync inicial falhou, entrando em modo offline.", error);
+          console.log("Sync inicial falhou/timeout. Liberando offline:", error);
         } finally {
-          setIsSyncingInitial(false);
-          if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+          // 🚀 TEMPO MÍNIMO DE TELA (Ex: 2.5 segundos)
+          // Dá tempo da animação da barra rolar e do Dashboard carregar os dados lá atrás
+          const elapsedTime = Date.now() - startTime;
+          const minDisplayTime = 2500; 
+          
+          if (elapsedTime < minDisplayTime) {
+            await new Promise(resolve => setTimeout(resolve, minDisplayTime - elapsedTime));
+          }
+
+          lastSyncedUserId.current = currentUserId;
+          setSyncState('done');
         }
-      }
+      };
+
+      doInitialSync();
+    } else if (!needsSync && syncState !== 'done') {
+      lastSyncedUserId.current = currentUserId;
+      setSyncState('done');
     }
-    
-    performInitialSync();
 
-    return () => {
-      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
-    };
-  }, [appIsReady, user, token, hapticsEnabled]);
+  }, [appIsReady, currentUserId, isGuest, token, syncState, hapticsEnabled]);
 
-  // 3. Redirecionamento Centralizado
+  // 3. Roteamento Inteligente (Carrega por trás da cortina)
   useEffect(() => {
-    const canNavigate = appIsReady && fontsLoaded && _hasHydrated && splashAnimationFinished;
-    
-    if (canNavigate && !isSyncingInitial) {
-      if (user) {
-        router.replace('/(tabs)');
-      } else {
-        router.replace('/Welcome'); 
-      }
-    }
-  }, [appIsReady, fontsLoaded, _hasHydrated, splashAnimationFinished, user, isSyncingInitial, router]);
+    const canRoute = appIsReady && fontsLoaded && _hasHydrated && splashFinished;
+    if (!canRoute) return;
 
+    if (!currentUserId) {
+      router.replace('/Welcome'); 
+    } else {
+      // 🚀 MUDANÇA AQUI: Manda pro Tabs IMEDIATAMENTE!
+      // Se o syncState for 'syncing', o SyncScreen estará renderizado por cima (absolute),
+      // então o usuário não verá o Dashboard carregando.
+      router.replace('/(tabs)');
+    }
+  }, [appIsReady, fontsLoaded, _hasHydrated, splashFinished, currentUserId, router]);
+
+  // Ocultar a Splash Nativa
   const onLayoutRootView = useCallback(async () => {
     if (appIsReady && fontsLoaded && _hasHydrated) {
       await SplashScreenNative.hideAsync();
     }
   }, [appIsReady, fontsLoaded, _hasHydrated]);
 
-  if (!fontsLoaded || !appIsReady || !_hasHydrated) {
-    return null;
-  }
+  if (!fontsLoaded || !appIsReady || !_hasHydrated) return null;
 
   const rootBackgroundColor = isDark ? '#010B19' : '#FFFFFF';
 
   return (
     <SafeAreaProvider>
-      <View 
-        style={[styles.container, { backgroundColor: rootBackgroundColor }]} 
-        onLayout={onLayoutRootView}
-      >
+      <View style={[styles.container, { backgroundColor: rootBackgroundColor }]} onLayout={onLayoutRootView}>
         <Stack screenOptions={{ freezeOnBlur: false, headerShown: false, animation: 'fade' }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="Welcome" /> 
@@ -128,24 +145,16 @@ export default function RootLayout() {
           <Stack.Screen name="index" />
         </Stack>
 
-        {(!splashAnimationFinished || isSyncingInitial) && (
-          <View 
-            style={[
-                StyleSheet.absoluteFill, 
-                { backgroundColor: rootBackgroundColor, justifyContent: 'center', alignItems: 'center', zIndex: 999 }
-            ]}
-          >
-            {!splashAnimationFinished ? (
-              <AnimatedSplashScreen 
-                onFinish={() => setSplashAnimationFinished(true)} 
-              />
+        {/* 🚀 Overlay de Carregamento */}
+        {(!splashFinished || syncState === 'syncing') && (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: rootBackgroundColor, zIndex: 999 }]}>
+            {!splashFinished ? (
+              <AnimatedSplashScreen onFinish={() => setSplashFinished(true)} />
             ) : (
-              <View style={styles.syncContainer}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={[styles.syncText, { color: colors.textSub }]}>
-                  Sincronizando seus dados...
-                </Text>
-              </View>
+              <SyncScreen 
+                message="Atualizando seu cofre..." 
+                subMessage="Buscando as informações da sua conta."
+              />
             )}
           </View>
         )}
@@ -156,17 +165,4 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  syncContainer: { 
-    alignItems: 'center', 
-    gap: 16,
-    paddingHorizontal: 40 
-  },
-  syncText: { 
-    fontSize: 14, 
-    fontWeight: '700', 
-    letterSpacing: 0.5,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-    opacity: 0.8
-  }
 });

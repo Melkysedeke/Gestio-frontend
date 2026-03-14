@@ -46,7 +46,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   
   toggleHideValues: () => set((state) => ({ hideValues: !state.hideValues })),
   
-  // ✅ Função para o usuário ligar/desligar vibrações nas Settings
   toggleHaptics: () => set((state) => ({ hapticsEnabled: !state.hapticsEnabled })),
   
   setSession: (user, token) => {
