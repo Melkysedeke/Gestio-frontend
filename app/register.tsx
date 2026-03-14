@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  View, Text, TouchableOpacity, StyleSheet, Alert, 
+  View, Text, TouchableOpacity, StyleSheet, 
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image, StatusBar 
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,13 +8,11 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as Haptics from 'expo-haptics';
 
-import { useAuthStore } from '../src/stores/authStore';
-import { authService } from '../src/services/authService';
-import api from '../src/services/api';
+// 🚀 Nossos importes refatorados
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { useAuthActions } from '@/hooks/useAuthActions'; // O Hook Central de Autenticação
 
 import SubHeader from '@/components/SubHeader';
 import CustomInput from '@/components/CustomInput';
@@ -23,23 +21,30 @@ import PrimaryButton from '@/components/PrimaryButton';
 export default function RegisterScreen() {
   const router = useRouter();
   const { colors, isDark } = useThemeColor();
-  const signIn = useAuthStore((state) => state.signIn);
-  const signInAsGuest = useAuthStore((state) => state.signInAsGuest);
   const insets = useSafeAreaInsets();
 
+  // Estados dos inputs
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
-  const [loading, setLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isGuestLoading, setIsGuestLoading] = useState(false);
+  // 🚀 Trazendo funções e estados de carregamento do Hook
+  const { 
+    handleEmailRegister, 
+    handleGoogleLogin, 
+    handleGuestLogin, 
+    isEmailLoading, 
+    isGoogleLoading, 
+    isGuestLoading,
+    isAnyLoading // Estado derivado (true se qualquer um dos acima for true)
+  } = useAuthActions();
 
+  // Função isolada apenas para a UI (selecionar foto)
   const handleAddPhoto = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images, 
+      mediaTypes: ['images'], // Atualizado para a API moderna do Expo
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.5,
@@ -48,79 +53,6 @@ export default function RegisterScreen() {
     if (!result.canceled) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setSelectedImage(result.assets[0].uri); 
-    }
-  };
-
-  async function handleRegister() {
-    if (!name || !email || !password || !confirmPassword) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      return Alert.alert('Atenção', 'Preencha todos os campos.');
-    }
-    if (password !== confirmPassword) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      return Alert.alert('Erro', 'As senhas não coincidem.');
-    }
-
-    setLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append('name', name.trim());
-      formData.append('email', email.trim().toLowerCase());
-      formData.append('password', password);
-
-      if (selectedImage) {
-        const uriParts = selectedImage.split('.');
-        const fileType = uriParts[uriParts.length - 1];
-        formData.append('avatar', {
-          uri: Platform.OS === 'ios' ? selectedImage.replace('file://', '') : selectedImage,
-          name: `avatar.${fileType}`,
-          type: `image/${fileType}`,
-        } as any);
-      }
-
-      const { user, token } = await authService.register(formData);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await signIn(user, token);
-      router.replace('/(tabs)');
-    } catch (error: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Erro ao Registrar', error.message || 'Falha ao criar conta.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const handleGoogleLogin = async () => {
-    try {
-      setIsGoogleLoading(true);
-      await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
-      const idToken = userInfo.data?.idToken || (userInfo as any).idToken;
-      if (!idToken) throw new Error("Token não obtido");
-      
-      const response = await api.post('/users/auth/google', { idToken });
-      await signIn(response.data.user, response.data.token);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(tabs)');
-    } catch (error: any) {
-      if (error.code !== 'ASYNC_OP_IN_PROGRESS') {
-        Alert.alert("Erro", "Não foi possível registrar com o Google.");
-      }
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
-
-  const handleGuestLogin = async () => {
-    setIsGuestLoading(true);
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await signInAsGuest('Visitante'); 
-      router.replace('/(tabs)');
-    } catch (error) {
-      Alert.alert("Erro", "Falha ao acessar como convidado.");
-    } finally {
-      setIsGuestLoading(false);
     }
   };
 
@@ -142,10 +74,22 @@ export default function RegisterScreen() {
 
             <Animated.View entering={FadeInDown.delay(100).duration(600).springify()} style={styles.imageUploadContainer}>
               <View style={styles.imageUploadWrapper}>
-                <TouchableOpacity style={[styles.imagePicker, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={handleAddPhoto}>
-                  {selectedImage ? <Image source={{ uri: selectedImage }} style={styles.previewImage} /> : <MaterialIcons name="add-a-photo" size={28} color={colors.primary} />}
+                <TouchableOpacity 
+                    style={[styles.imagePicker, { backgroundColor: colors.card, borderColor: colors.border }]} 
+                    onPress={handleAddPhoto}
+                    disabled={isAnyLoading}
+                >
+                  {selectedImage ? (
+                      <Image source={{ uri: selectedImage }} style={styles.previewImage} /> 
+                  ) : (
+                      <MaterialIcons name="add-a-photo" size={28} color={colors.primary} />
+                  )}
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.background }]} onPress={handleAddPhoto}>
+                <TouchableOpacity 
+                    style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.background }]} 
+                    onPress={handleAddPhoto}
+                    disabled={isAnyLoading}
+                >
                   <MaterialIcons name="edit" size={14} color="#FFF" />
                 </TouchableOpacity>
               </View>
@@ -153,11 +97,46 @@ export default function RegisterScreen() {
             </Animated.View>
 
             <Animated.View entering={FadeInDown.delay(200).duration(600).springify()} style={styles.form}>
-              <CustomInput label="Nome Completo" leftIcon="person-outline" placeholder="Ex: João Silva" value={name} onChangeText={setName} />
-              <CustomInput label="E-mail" leftIcon="mail-outline" placeholder="joao@email.com" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
-              <CustomInput label="Senha" leftIcon="lock-outline" placeholder="Mínimo 6 caracteres" isPassword value={password} onChangeText={setPassword} />
-              <CustomInput label="Confirmar Senha" leftIcon="lock-reset" placeholder="Repita sua senha" isPassword value={confirmPassword} onChangeText={setConfirmPassword} />
-              <PrimaryButton title="Criar minha conta" onPress={handleRegister} isLoading={loading} disabled={isGoogleLoading || isGuestLoading} style={{ marginTop: 10 }} />
+              <CustomInput 
+                label="Nome Completo" 
+                leftIcon="person-outline" 
+                placeholder="Ex: João Silva" 
+                value={name} 
+                onChangeText={setName} 
+              />
+              <CustomInput 
+                label="E-mail" 
+                leftIcon="mail-outline" 
+                placeholder="joao@email.com" 
+                keyboardType="email-address" 
+                autoCapitalize="none" 
+                value={email} 
+                onChangeText={setEmail} 
+              />
+              <CustomInput 
+                label="Senha" 
+                leftIcon="lock-outline" 
+                placeholder="Mínimo 6 caracteres" 
+                isPassword 
+                value={password} 
+                onChangeText={setPassword} 
+              />
+              <CustomInput 
+                label="Confirmar Senha" 
+                leftIcon="lock-reset" 
+                placeholder="Repita sua senha" 
+                isPassword 
+                value={confirmPassword} 
+                onChangeText={setConfirmPassword} 
+              />
+              
+              <PrimaryButton 
+                title="Criar minha conta" 
+                onPress={() => handleEmailRegister(name, email, password, confirmPassword, selectedImage)} 
+                isLoading={isEmailLoading} 
+                disabled={isAnyLoading} 
+                style={{ marginTop: 10 }} 
+              />
             </Animated.View>
 
             <Animated.View entering={FadeInDown.delay(300).duration(600)} style={styles.googleSection}>
@@ -170,9 +149,11 @@ export default function RegisterScreen() {
               <TouchableOpacity 
                 style={[styles.googleButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : colors.card, borderColor: colors.border }]} 
                 onPress={handleGoogleLogin}
-                disabled={isGoogleLoading || loading || isGuestLoading}
+                disabled={isAnyLoading}
               >
-                {isGoogleLoading ? <ActivityIndicator color={colors.primary} /> : (
+                {isGoogleLoading ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
                   <View style={styles.googleButtonContent}>
                     <Image source={require('../assets/images/google.png')} style={styles.googleIcon} />
                     <Text style={[styles.googleButtonText, { color: colors.text }]}>Registrar com Google</Text>
@@ -180,13 +161,15 @@ export default function RegisterScreen() {
                 )}
               </TouchableOpacity>
 
-              {/* Botão de Convidado adicionado logo abaixo do Google */}
+              {/* Botão de Convidado */}
               <TouchableOpacity 
                 onPress={handleGuestLogin} 
                 style={styles.guestButton} 
-                disabled={isGuestLoading || loading || isGoogleLoading}
+                disabled={isAnyLoading}
               >
-                {isGuestLoading ? <ActivityIndicator size="small" color={colors.primary} /> : (
+                {isGuestLoading ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
                   <Text style={[styles.guestText, { color: colors.textSub }]}>Entrar como convidado</Text>
                 )}
               </TouchableOpacity>
@@ -194,10 +177,11 @@ export default function RegisterScreen() {
 
             <Animated.View entering={FadeInDown.delay(400).duration(600)} style={styles.footer}>
               <Text style={[styles.footerText, { color: colors.textSub }]}>Já possui uma conta? </Text>
-              <TouchableOpacity onPress={() => router.push('/Login')}>
+              <TouchableOpacity onPress={() => router.push('/Login')} disabled={isAnyLoading}>
                 <Text style={[styles.loginLinkText, { color: colors.primary }]}>Fazer Login</Text>
               </TouchableOpacity>
             </Animated.View>
+
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

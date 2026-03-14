@@ -1,74 +1,29 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
-  Alert, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, 
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, 
   KeyboardAvoidingView, Platform, StatusBar, Image
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router'; 
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import * as Haptics from 'expo-haptics';
 
-import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import api from '../src/services/api';
+import { useAuthActions } from '@/hooks/useAuthActions'; // 🚀 O poderoso Hook Global!
 
 export default function WelcomeScreen() {
   const { colors, isDark } = useThemeColor();
   const router = useRouter(); 
   const insets = useSafeAreaInsets();
 
-  const signInAsGuest = useAuthStore((state) => state.signInAsGuest);
-  const signIn = useAuthStore((state) => state.signIn); 
-  
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isGuestLoading, setIsGuestLoading] = useState(false);
-
-  // --- FLUXO DO GOOGLE ---
-  const handleGoogleLogin = async () => {
-    try {
-      setIsGoogleLoading(true);
-      await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
-      
-      if (userInfo.type === 'cancelled') return; 
-
-      const idToken = userInfo.data?.idToken;
-      if (!idToken) throw new Error("Falha ao obter o token do Google");
-      
-      const response = await api.post('/users/auth/google', { idToken });
-      
-      await signIn(response.data.user, response.data.token);
-      
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(tabs)');
-    } catch (error: any) {
-      if (error.code !== 'ASYNC_OP_IN_PROGRESS') {
-        console.error("Erro Google Login:", error.response?.data || error.message);
-        Alert.alert("Erro", "Não foi possível entrar com o Google.");
-      }
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
-
-const handleGuestLogin = async () => {
-  setIsGuestLoading(true);
-  try {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    await signInAsGuest('Visitante'); 
-    
-    router.replace('/(tabs)');
-  } catch (error) {
-    Alert.alert("Erro", "Falha ao acessar como convidado.");
-  } finally {
-    setIsGuestLoading(false);
-  }
-};
-
-  const isLoading = isGoogleLoading || isGuestLoading;
+  // 🚀 Extraindo apenas a lógica e o loading necessários para esta tela
+  const { 
+    handleGoogleLogin, 
+    handleGuestLogin, 
+    isGoogleLoading, 
+    isGuestLoading, 
+    isAnyLoading 
+  } = useAuthActions();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -79,6 +34,8 @@ const handleGuestLogin = async () => {
       <View style={[styles.intermediateBubble, { backgroundColor: isDark ? 'rgba(23, 115, 207, 0.05)' : 'rgba(23, 115, 207, 0.08)' }]} />
       
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        
+        {/* HEADER DECORATIVO */}
         <LinearGradient
           colors={[colors.primary, isDark ? '#0f4d8b' : '#3b82f6']}
           style={[styles.headerDecoration, { paddingTop: insets.top }]}
@@ -100,7 +57,7 @@ const handleGuestLogin = async () => {
           
           <View style={styles.buttonsWrapper}>
             
-            {/* 🚀 Botão do Google Padronizado com as outras telas */}
+            {/* 🚀 Botão do Google Padronizado */}
             <TouchableOpacity 
               style={[
                 styles.googleButton, 
@@ -108,10 +65,10 @@ const handleGuestLogin = async () => {
                   backgroundColor: isDark ? '#1E293B' : '#FFFFFF', 
                   borderColor: isDark ? '#334155' : '#E2E8F0' 
                 },
-                isLoading && { opacity: 0.7 }
+                isAnyLoading && { opacity: 0.7 }
               ]} 
               onPress={handleGoogleLogin}
-              disabled={isLoading}
+              disabled={isAnyLoading}
               activeOpacity={0.8}
             >
               {isGoogleLoading ? (
@@ -125,12 +82,13 @@ const handleGuestLogin = async () => {
             </TouchableOpacity>
 
             <View style={styles.rowButtons}>
+              
               {/* Botão de Cadastro Sólido */}
               <TouchableOpacity 
                 style={[styles.halfButton, { backgroundColor: colors.primary }]}
                 onPress={() => router.push('/Register')}
                 activeOpacity={0.8}
-                disabled={isLoading}
+                disabled={isAnyLoading}
               >
                 <MaterialIcons name="person-add" size={20} color="#FFF" />
                 <Text style={styles.primaryButtonText}>Criar Conta</Text>
@@ -148,19 +106,20 @@ const handleGuestLogin = async () => {
                 ]}
                 onPress={() => router.push('/Login')}
                 activeOpacity={0.7}
-                disabled={isLoading}
+                disabled={isAnyLoading}
               >
                 <MaterialIcons name="login" size={20} color={colors.primary} />
                 <Text style={[styles.outlineButtonText, { color: colors.primary }]}>Entrar</Text>
               </TouchableOpacity>
+              
             </View>
           </View>
 
-          {/* Rodapé com insets */}
+          {/* 🚀 Rodapé com insets e Loading Condicional */}
           <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
             <TouchableOpacity 
               onPress={handleGuestLogin}
-              disabled={isLoading}
+              disabled={isAnyLoading}
               activeOpacity={0.6}
               style={[styles.guestButton, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}
             >
