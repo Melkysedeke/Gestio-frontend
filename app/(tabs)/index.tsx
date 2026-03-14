@@ -26,7 +26,7 @@ import Transaction from '../../src/database/models/Transaction';
 import NoWalletState from '../../components/NoWalletState';
 import MainHeader from '../../components/MainHeader';
 import MonthSelector from '../../components/MonthSelector'; 
-import MonthlyReport from '../../components/MonthlyReport'; // <-- Relatório Mensal Importado aqui!
+import MonthlyReport from '../../components/MonthlyReport';
 
 export default function DashboardScreen() {
   const { user, setHasWallets, lastSyncTime } = useAuthStore();
@@ -234,8 +234,14 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            {/* 🔥 Relatório Mensal Adicionado Aqui 🔥 */}
-            {/* <MonthlyReport /> */}
+            {/* 🔥 Relatório Mensal Dinâmico 🔥 */}
+            {activeWallet && (
+              <MonthlyReport 
+                walletId={activeWallet.id} 
+                selectedMonth={selectedMonth} 
+                updateTrigger={recentTransactions}
+              />
+            )}
 
             {/* 4. O Diário (Categoria no Título, Nome na Descrição) */}
             <View style={styles.sectionHeader}>
@@ -315,7 +321,7 @@ const styles = StyleSheet.create({
   
   balanceCard: { width: '100%', borderRadius: 20, padding: 20, elevation: 6, overflow: 'hidden' },
   bgIcon: { position: 'absolute', right: -15, bottom: -15, transform: [{ rotate: '-10deg' }] },
-  balanceHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  balanceHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
   balanceLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '600' },
   growthBadge: { 
     flexDirection: 'row', 
@@ -327,7 +333,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)'
   },
   growthText: { fontSize: 11, fontWeight: '800', color: "#FFF" },
-  balanceValue: { color: '#FFF', fontSize: 36, fontWeight: '900', marginBottom: 4, letterSpacing: -0.5 },
+  balanceValue: { color: '#FFF', fontSize: 36, fontWeight: '900', letterSpacing: -0.5 },
   balanceDateText: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '500' },
 
   adContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, borderStyle: 'dashed', borderWidth: 1, borderColor: 'rgba(150,150,150,0.3)', gap: 8 },
@@ -335,7 +341,7 @@ const styles = StyleSheet.create({
 
   statsRow: { flexDirection: 'row', gap: 12 },
   statCard: { flex: 1, borderRadius: 16, padding: 12, borderWidth: 1 },
-  statHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  statHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
   statIconBox: { width: 30, height: 30, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   statLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
   statValue: { fontSize: 18, fontWeight: '900' },

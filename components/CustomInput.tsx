@@ -7,16 +7,20 @@ import {
   TouchableOpacity, 
   StyleSheet, 
   TextInputProps,
-  ViewStyle
+  ViewStyle,
+  Platform
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
+// 🚀 1. Importando o haptic sutil para ações de UI
+import { triggerSelectionHaptic } from '@/src/utils/haptics';
+
 interface CustomInputProps extends TextInputProps {
   label?: string;
-  leftIcon?: keyof typeof MaterialIcons.glyphMap; // Tipagem correta para os ícones
-  isPassword?: boolean; // Se true, ele mesmo cria o botão do "olhinho"
-  containerStyle?: ViewStyle; // Para margens externas, se necessário
+  leftIcon?: keyof typeof MaterialIcons.glyphMap; 
+  isPassword?: boolean; 
+  containerStyle?: ViewStyle; 
 }
 
 export default function CustomInput({ 
@@ -24,17 +28,20 @@ export default function CustomInput({
   leftIcon, 
   isPassword = false, 
   containerStyle,
-  ...rest // Pega o resto das propriedades do TextInput (value, onChangeText, etc)
+  ...rest 
 }: CustomInputProps) {
-  const { colors } = useThemeColor();
+  const { colors, isDark } = useThemeColor();
   
-  // Estados internos do componente
   const [isFocused, setIsFocused] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
+  const handleTogglePassword = () => {
+    triggerSelectionHaptic(); // 🚀 2. Vibração curta ao mostrar/esconder senha
+    setIsPasswordVisible(!isPasswordVisible);
+  };
+
   return (
     <View style={[styles.inputGroup, containerStyle]}>
-      {/* Renderiza a Label só se ela for passada */}
       {label && (
         <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
       )}
@@ -43,44 +50,44 @@ export default function CustomInput({
         style={[
           styles.inputWrapper, 
           { 
-            backgroundColor: colors.card, 
-            // Muda a cor da borda se estiver focado!
+            backgroundColor: isFocused && isDark ? 'rgba(255,255,255,0.02)' : colors.card, 
             borderColor: isFocused ? colors.primary : colors.border 
           }
         ]}
       >
-        {/* Ícone da esquerda */}
         {leftIcon && (
           <MaterialIcons 
             name={leftIcon} 
             size={20} 
-            // O ícone acende com a cor primária quando focado
             color={isFocused ? colors.primary : colors.textSub} 
             style={styles.inputIconLeft} 
           />
         )}
 
-        {/* O Input em si */}
         <TextInput
           style={[styles.input, { color: colors.text }]}
           placeholderTextColor={colors.textSub}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           secureTextEntry={isPassword ? !isPasswordVisible : rest.secureTextEntry}
+          // 🚀 3. Deixa o cursor e a seleção de texto com a cor primária do app
+          selectionColor={colors.primary}
+          cursorColor={colors.primary}
           {...rest}
         />
 
-        {/* Ícone da direita (Olhinho da senha gerado automaticamente) */}
         {isPassword && (
           <TouchableOpacity 
             style={styles.inputIconRight} 
-            onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+            onPress={handleTogglePassword}
             activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <MaterialIcons 
               name={isPasswordVisible ? "visibility" : "visibility-off"} 
               size={22} 
-              color={colors.textSub} 
+              // O ícone fica aceso (cor primária) se a senha estiver visível
+              color={isPasswordVisible ? colors.primary : colors.textSub} 
             />
           </TouchableOpacity>
         )}
@@ -96,16 +103,19 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginLeft: 4,
+    letterSpacing: 0.3,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1.5, // 1.5 dá um destaque melhor no foco
+    borderRadius: 14, // Arredondado levemente mais moderno, como os cards
+    borderWidth: 1.5, 
     height: 52,
     paddingHorizontal: 14,
+    // Transição suave não existe de forma nativa simples no StyleSheet, 
+    // mas a troca de cor de borda já passa essa sensação de foco
   },
   inputIconLeft: {
     marginRight: 10,
@@ -114,9 +124,13 @@ const styles = StyleSheet.create({
     flex: 1,
     height: '100%',
     fontSize: 15,
+    ...Platform.select({
+      // Evita cortes de fonte no Android
+      android: { paddingVertical: 0 }
+    })
   },
   inputIconRight: {
     padding: 8,
-    marginRight: -6, // Compensa o padding para o ícone ficar bem alinhado à direita
+    marginRight: -6, 
   },
 });

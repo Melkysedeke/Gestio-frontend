@@ -7,8 +7,10 @@ import {
   TouchableOpacityProps,
   ViewStyle
 } from 'react-native';
-import * as Haptics from 'expo-haptics'; // Opcional: melhora muito a UX
 import { useThemeColor } from '@/hooks/useThemeColor';
+
+// 🚀 Importação da nossa lógica inteligente de haptics
+import { triggerHaptic } from '@/src/utils/haptics'; 
 
 interface PrimaryButtonProps extends TouchableOpacityProps {
   title: string;
@@ -29,10 +31,10 @@ export default function PrimaryButton({
 
   const isDisabled = disabled || isLoading;
 
-  // Função para lidar com o clique e adicionar vibração leve
+  // Função para lidar com o clique e adicionar vibração leve respeitando o Store
   const handlePress = (e: any) => {
     if (onPress) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); // Feedback sutil
+      triggerHaptic(); // 🚀 Agora ele só vibra se o usuário permitir
       onPress(e);
     }
   };
@@ -89,13 +91,12 @@ export default function PrimaryButton({
 
 const styles = StyleSheet.create({
   button: {
-    height: 56, // Altura levemente maior para facilitar o toque (conforto)
-    borderRadius: 16, // Bordas mais modernas, combinando com o seu SplashScreen
+    height: 56, 
+    borderRadius: 16, 
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
-    // Sombra sutil
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -109,7 +110,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: '700', // Um pouco mais pesado que 'bold' em algumas fontes
+    fontWeight: '700', 
     letterSpacing: 0.3,
   },
 });

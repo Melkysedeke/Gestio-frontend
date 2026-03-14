@@ -5,6 +5,9 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
+// 🚀 Importação do nosso utilitário centralizado
+import { triggerHaptic } from '@/src/utils/haptics';
+
 interface SubHeaderProps {
   title: string;
   showBack?: boolean;
@@ -22,6 +25,9 @@ export default function SubHeader({
   const router = useRouter();
 
   const handleBack = () => {
+    // 🚀 Feedback tátil ao voltar (respeita a config global)
+    triggerHaptic();
+
     if (onBackPress) {
       onBackPress();
     } else {
@@ -42,18 +48,18 @@ export default function SubHeader({
           borderBottomColor: colors.border 
         }
       ]} 
-      edges={['top']}
+      edges={['top']} // 🛡️ Garante o Edge-to-Edge perfeito no topo
     >
       <View style={styles.headerContent}>
         
-        {/* Lado Esquerdo */}
+        {/* Lado Esquerdo: Botão Voltar */}
         <View style={styles.sideContainer}>
           {showBack && (
             <TouchableOpacity 
               onPress={handleBack}
               style={styles.iconButton}
               activeOpacity={0.7}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 20 }}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 30 }}
               accessibilityRole="button"
               accessibilityLabel="Voltar"
             >
@@ -62,7 +68,7 @@ export default function SubHeader({
           )}
         </View>
 
-        {/* Centro (Título) */}
+        {/* Centro: Título Dinâmico */}
         <View style={styles.titleContainer}>
           <Text 
             style={[styles.headerTitle, { color: colors.text }]}
@@ -73,7 +79,7 @@ export default function SubHeader({
           </Text>
         </View>
 
-        {/* Lado Direito */}
+        {/* Lado Direito: Ações Extras (Salvar, etc) */}
         <View style={[styles.sideContainer, { alignItems: 'flex-end' }]}>
           {rightComponent}
         </View>
@@ -86,7 +92,12 @@ export default function SubHeader({
 const styles = StyleSheet.create({
   safeHeader: {
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 3 },
+      ios: { 
+        shadowColor: '#000', 
+        shadowOffset: { width: 0, height: 2 }, 
+        shadowOpacity: 0.04, 
+        shadowRadius: 4 
+      },
       android: { elevation: 3 }, 
     }),
     borderBottomWidth: 1,
@@ -97,7 +108,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    height: 70, 
+    height: 64, // Altura padrão de sistema para headers secundários
   },
   sideContainer: {
     width: 50, 
@@ -109,15 +120,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'flex-start', 
     justifyContent: 'center',
     marginLeft: -4,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
+    letterSpacing: -0.3,
   }
 });

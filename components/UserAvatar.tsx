@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, Image } from 'react-native';
+import React, { memo } from 'react';
+import { View, Text, Image } from 'react-native'; // 🚀 StyleSheet removido (não era usado)
 import { MaterialIcons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
@@ -11,19 +11,17 @@ interface UserAvatarProps {
   size?: number; 
 }
 
-export default function UserAvatar({ user, size = 40 }: UserAvatarProps) {
+// ✅ Definimos como uma função nomeada para o ESLint não reclamar do displayName
+const UserAvatarComponent = ({ user, size = 40 }: UserAvatarProps) => {
   const { colors, isDark } = useThemeColor();
 
   const containerStyle = {
     width: size,
     height: size,
-    borderRadius: size / 2, // 🚀 Círculo perfeito! Acaba com o visual "troncho"
+    borderRadius: size / 2,
     justifyContent: 'center' as const,
     alignItems: 'center' as const,
     overflow: 'hidden' as const,
-    
-    // 🚀 A MÁGICA CONTRA O ACHATAMENTO:
-    // Garante que nenhum elemento pai consiga esmagar ou esticar o avatar
     flexShrink: 0, 
     flexGrow: 0,
     aspectRatio: 1, 
@@ -35,7 +33,7 @@ export default function UserAvatar({ user, size = 40 }: UserAvatarProps) {
     if (nameParts.length > 1) {
       return `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase();
     }
-    return name.substring(0, 2).toUpperCase();
+    return name.substring(0, 1).toUpperCase();
   };
 
   if (user?.avatar && user.avatar !== 'default' && !user.avatar.includes('@local')) {
@@ -57,9 +55,10 @@ export default function UserAvatar({ user, size = 40 }: UserAvatarProps) {
         { backgroundColor: isDark ? 'rgba(23, 115, 207, 0.15)' : '#e0f2fe' } 
       ]}>
         <Text style={{ 
-          fontSize: size * 0.4, 
-          fontWeight: '700', 
-          color: colors.primary 
+          fontSize: size * 0.42, 
+          fontWeight: '800', 
+          color: colors.primary,
+          letterSpacing: -0.5
         }}>
           {getInitials(user.name)}
         </Text>
@@ -75,4 +74,10 @@ export default function UserAvatar({ user, size = 40 }: UserAvatarProps) {
       <MaterialIcons name="person" size={size * 0.6} color={colors.textSub} />
     </View>
   );
-}
+};
+
+// ✅ Exportamos com memo e definimos o Display Name explicitamente
+const UserAvatar = memo(UserAvatarComponent);
+UserAvatar.displayName = 'UserAvatar'; 
+
+export default UserAvatar;

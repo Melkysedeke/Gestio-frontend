@@ -5,11 +5,12 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-// 🚀 1. Importação do hook de SafeArea
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
-// Define quais contextos existem
+// 🚀 Importando utilitário de haptics
+import { triggerHaptic, triggerSelectionHaptic } from '@/src/utils/haptics';
+
 export type SheetContext = 'index' | 'transactions' | 'debts' | 'goals';
 
 interface Props {
@@ -24,15 +25,21 @@ const BUTTON_WIDTH = (width - 40 - 12) / 2;
 export default function ActionSheet({ visible, context, onClose }: Props) {
   const router = useRouter();
   const { colors, isDark } = useThemeColor();
-  // 🚀 2. Instanciando o insets
   const insets = useSafeAreaInsets();
 
   const handleNavigate = (route: string) => {
+    triggerSelectionHaptic(); // 🚀 Feedback na hora de escolher a ação
     onClose();
+    
+    // Pequeno atraso para a animação do modal não engasgar a navegação
     setTimeout(() => {
-        // @ts-ignore
-        router.push(route);
-    }, 100);
+        router.push(route as any);
+    }, 200);
+  };
+
+  const handleClose = () => {
+    triggerHaptic(); // 🚀 Feedback ao fechar/cancelar
+    onClose();
   };
 
   const getTitle = () => {
@@ -56,6 +63,7 @@ export default function ActionSheet({ visible, context, onClose }: Props) {
       <TouchableOpacity 
         style={[styles.squareButton, buttonStyle]} 
         onPress={() => handleNavigate('/AddTransaction?type=expense')}
+        activeOpacity={0.7}
       >
         <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(250, 98, 56, 0.15)' : '#fef2f2' }]}>
           <MaterialIcons name="money-off" size={28} color="#fa6238" />
@@ -66,6 +74,7 @@ export default function ActionSheet({ visible, context, onClose }: Props) {
       <TouchableOpacity 
         style={[styles.squareButton, buttonStyle]} 
         onPress={() => handleNavigate('/AddTransaction?type=income')}
+        activeOpacity={0.7}
       >
         <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(11, 218, 91, 0.15)' : '#ecfdf5' }]}>
           <MaterialIcons name="attach-money" size={28} color="#0bda5b" />
@@ -80,6 +89,7 @@ export default function ActionSheet({ visible, context, onClose }: Props) {
       <TouchableOpacity 
         style={[styles.squareButton, buttonStyle]} 
         onPress={() => handleNavigate('/AddDebt?type=debt')}
+        activeOpacity={0.7}
       >
         <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(234, 88, 12, 0.15)' : '#fff7ed' }]}>
           <MaterialIcons name="remove-circle-outline" size={28} color="#ea580c" />
@@ -90,6 +100,7 @@ export default function ActionSheet({ visible, context, onClose }: Props) {
       <TouchableOpacity 
         style={[styles.squareButton, buttonStyle]} 
         onPress={() => handleNavigate('/AddDebt?type=loan')}
+        activeOpacity={0.7}
       >
         <View style={[styles.iconBox, { backgroundColor: isDark ? 'rgba(23, 115, 207, 0.15)' : '#eff6ff' }]}>
           <MaterialIcons name="add-circle-outline" size={28} color="#1773cf" />
@@ -100,35 +111,36 @@ export default function ActionSheet({ visible, context, onClose }: Props) {
   );
 
   const GoalButton = () => (
-    // 🚀 O retorno (return) estava implicito incorretamente na sua versão original
+    // 🚀 Corrigido o erro de sintaxe do JSX no retorno do botão
     <TouchableOpacity 
         style={[styles.fullWidthButton, buttonStyle]} 
         onPress={() => handleNavigate('/AddGoal')} 
+        activeOpacity={0.7}
     >
-        <View style={[styles.iconBoxSmall, { backgroundColor: isDark ? 'rgba(217, 70, 239, 0.15)' : '#fdf4ff' }]}>
-            <MaterialIcons name="flag" size={24} color="#d946ef" />
-        </View>
-        <Text style={[styles.actionLabelRow, { color: colors.text }]}>Criar Novo Objetivo</Text>
-        <MaterialIcons name="chevron-right" size={20} color={colors.textSub} style={{ marginLeft: 'auto' }} />
+      <View style={[styles.iconBoxSmall, { backgroundColor: isDark ? 'rgba(217, 70, 239, 0.15)' : '#fdf4ff' }]}>
+          <MaterialIcons name="flag" size={24} color="#d946ef" />
+      </View>
+      <Text style={[styles.actionLabelRow, { color: colors.text }]}>Criar Novo Objetivo</Text>
+      <MaterialIcons name="chevron-right" size={20} color={colors.textSub} style={{ marginLeft: 'auto' }} />
     </TouchableOpacity>
   );
 
   return (
     <Modal
-      animationType="fade"
+      animationType="slide" // Slide dá uma sensação nativa melhor para Bottom Sheets
       transparent={true}
       visible={visible}
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
       statusBarTranslucent
     >
-      <TouchableWithoutFeedback onPress={onClose}>
+      <TouchableWithoutFeedback onPress={handleClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
             <View style={[
                 styles.sheet, 
                 { 
                   backgroundColor: colors.card,
-                  paddingBottom: Math.max(insets.bottom + 20, 40)
+                  paddingBottom: Math.max(insets.bottom + 20, 32)
                 }
               ]}>
               
@@ -167,10 +179,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    borderTopLeftRadius: 24, 
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 32, // 🚀 Aumentado para combinar com os novos modais
+    borderTopRightRadius: 32,
     paddingHorizontal: 20, 
-    // paddingBottom: 40, <-- Removido para o style inline
     paddingTop: 10,
     width: '100%',
     shadowColor: "#000",
@@ -181,15 +192,16 @@ const styles = StyleSheet.create({
   },
   handleContainer: { alignItems: 'center', marginBottom: 20, marginTop: 6 },
   handle: {
-    width: 40, 
-    height: 4, 
-    borderRadius: 2, 
+    width: 48, // 🚀 Aumentado para facilitar visualmente o arraste
+    height: 5, 
+    borderRadius: 3, 
   },
   title: {
     fontSize: 18, 
     fontWeight: '800', 
     marginBottom: 24, 
-    textAlign: 'center'
+    textAlign: 'center',
+    letterSpacing: -0.3
   },
   grid: {
     flexDirection: 'row', 
@@ -197,53 +209,51 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between', 
     gap: 12
   },
-  
   squareButton: {
     width: BUTTON_WIDTH,
-    borderWidth: 1, 
-    borderRadius: 20, 
-    paddingVertical: 20, 
+    borderWidth: 1.5, // 🚀 Borda ligeiramente mais visível
+    borderRadius: 24, 
+    paddingVertical: 24, 
     alignItems: 'center', 
     justifyContent: 'center',
     elevation: 2,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4,
   },
-  
   fullWidthButton: {
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1, 
+    borderWidth: 1.5, 
     borderRadius: 20, 
     paddingHorizontal: 16,
     paddingVertical: 16,
     elevation: 2,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4,
   },
-
   iconBox: {
-    width: 50, 
-    height: 50, 
-    borderRadius: 25, 
+    width: 56, // 🚀 Maior destaque para os ícones principais
+    height: 56, 
+    borderRadius: 28, 
     alignItems: 'center', 
     justifyContent: 'center', 
-    marginBottom: 10
+    marginBottom: 12
   },
   iconBoxSmall: {
-    width: 40, 
-    height: 40, 
-    borderRadius: 20, 
+    width: 44, 
+    height: 44, 
+    borderRadius: 22, 
     alignItems: 'center', 
     justifyContent: 'center', 
-    marginRight: 12
+    marginRight: 14
   },
-
   actionLabel: {
-    fontSize: 13, 
-    fontWeight: '600', 
-  },
-  actionLabelRow: {
     fontSize: 14, 
     fontWeight: '700', 
+    letterSpacing: 0.3
+  },
+  actionLabelRow: {
+    fontSize: 15, 
+    fontWeight: '700', 
+    letterSpacing: 0.3
   }
 });

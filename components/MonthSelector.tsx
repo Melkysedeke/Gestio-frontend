@@ -1,7 +1,8 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { ScrollView, TouchableOpacity, Text, StyleSheet, View } from 'react-native';
-import * as Haptics from 'expo-haptics';
 import { useThemeColor } from '@/hooks/useThemeColor';
+
+import { triggerSelectionHaptic } from '@/src/utils/haptics';
 
 interface MonthSelectorProps {
   selectedDate: Date;
@@ -31,7 +32,8 @@ export default function MonthSelector({ selectedDate, onMonthChange }: MonthSele
   }, []);
 
   const handlePress = (date: Date) => {
-    Haptics.selectionAsync();
+    // 🚀 Substituído pela nossa função inteligente que respeita o usuário
+    triggerSelectionHaptic();
     onMonthChange(date);
   };
 
@@ -89,13 +91,12 @@ export default function MonthSelector({ selectedDate, onMonthChange }: MonthSele
 
 const styles = StyleSheet.create({
   container: { 
-    // marginTop: 2,
-    // marginBottom: 2,
+    // Container limpo, permitindo que a tela pai (Dashboard/Home) defina as margens
   },
   scrollContent: { 
     paddingHorizontal: 20,
     alignItems: 'center',
-    // paddingVertical: 2,
+    paddingVertical: 4, // 🚀 Pequeno respiro essencial para não cortar a sombra (elevation) no Android
   },
   item: { 
     flexDirection: 'row',
@@ -112,7 +113,7 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   text: { 
-    fontSize: 13, // Ajuste fino no tamanho
+    fontSize: 13,
     fontWeight: '700',
     textTransform: 'capitalize'
   },

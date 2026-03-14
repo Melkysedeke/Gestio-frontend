@@ -5,7 +5,6 @@ import {
   Modal, 
   StyleSheet, 
   TouchableOpacity, 
-  TextInput, 
   ActivityIndicator,
   Alert,
   TouchableWithoutFeedback,
@@ -14,12 +13,17 @@ import {
   Platform 
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-// 🚀 1. Importação do hook de SafeArea
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 
 import { database } from '../src/database'; 
 import { useAuthStore } from '../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
+
+// 🚀 Nossos componentes globais e utilitários
+import CustomInput from './CustomInput';
+import PrimaryButton from './PrimaryButton';
+import { triggerHaptic, triggerNotificationHaptic } from '@/src/utils/haptics';
 
 interface Props {
   visible: boolean;
@@ -35,7 +39,6 @@ export default function CreateWalletModal({ visible, onClose, onSuccess }: Props
   const updateUserSetting = useAuthStore(state => state.updateUserSetting);
 
   const { colors, isDark } = useThemeColor();
-  // 🚀 2. Instanciando o insets
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -45,8 +48,17 @@ export default function CreateWalletModal({ visible, onClose, onSuccess }: Props
     }
   }, [visible]);
 
+  const handleClose = () => {
+    triggerHaptic();
+    Keyboard.dismiss();
+    onClose();
+  };
+
   const handleCreate = async () => {
-    if (!name.trim()) return Alert.alert("Atenção", "Dê um nome para sua carteira.");
+    if (!name.trim()) {
+      triggerNotificationHaptic(Haptics.NotificationFeedbackType.Warning);
+      return Alert.alert("Atenção", "Dê um nome para sua carteira.");
+    }
     if (!user) return;
 
     setLoading(true);
@@ -67,11 +79,14 @@ export default function CreateWalletModal({ visible, onClose, onSuccess }: Props
 
       if (newWalletId) {
         await updateUserSetting({ last_opened_wallet: newWalletId });
+        
+        triggerNotificationHaptic(Haptics.NotificationFeedbackType.Success);
         if (onSuccess) onSuccess();
         onClose();
       }
     } catch (error: any) {
       console.error("❌ Erro ao criar carteira:", error);
+      triggerNotificationHaptic(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Erro', 'Não foi possível criar a carteira. Tente novamente.');
     } finally {
       setLoading(false);
@@ -83,69 +98,55 @@ export default function CreateWalletModal({ visible, onClose, onSuccess }: Props
       animationType="slide"
       transparent={true}
       visible={visible}
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
-      {/* Clica fora do modal fecha o teclado e o modal */}
-      <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); onClose(); }}>
+      <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); handleClose(); }}>
         <View style={styles.overlay}>
           
-          {/* 🚀 3. KeyboardAvoidingView englobando APENAS o conteúdo para não quebrar o fundo */}
+          {/* O KeyboardAvoidingView garante que o botão não seja coberto */}
           <KeyboardAvoidingView 
-            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'} 
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
             style={{ width: '100%' }}
           >
-            {/* Evita que o clique DENTRO do modal feche ele */}
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
               <View style={[
                   styles.modalContent, 
                   { 
                     backgroundColor: colors.card,
-                    // 🚀 4. Padding inferior dinâmico para respeitar a barra do sistema
+                    // Respeita o botão home do iPhone ou botões on-screen do Android
                     paddingBottom: Math.max(insets.bottom + 20, 24) 
                   }
                 ]}>
                   
+                  {/* Tracinho de arraste */}
                   <View style={[styles.handleBar, { backgroundColor: colors.border }]} />
                   
                   <View style={styles.header}>
                       <Text style={[styles.title, { color: colors.text }]}>Nova Carteira</Text>
-                      <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                          <MaterialIcons name="close" size={24} color={colors.textSub} />
+                      <TouchableOpacity onPress={handleClose} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                         <View style={[styles.closeIconBg, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }]}>
+                           <MaterialIcons name="close" size={20} color={colors.textSub} />
+                         </View>
                       </TouchableOpacity>
                   </View>
 
-                  <Text style={[styles.label, { color: colors.textSub }]}>Nome da Carteira</Text>
-                  
-                  <TextInput 
-                      style={[
-                          styles.input, 
-                          { 
-                              backgroundColor: isDark ? colors.background : '#F1F5F9', 
-                              borderColor: colors.border, 
-                              color: colors.text 
-                          }
-                      ]}
-                      placeholder="Ex: Nubank, Física, Investimentos..."
-                      placeholderTextColor={colors.textSub}
-                      value={name}
-                      onChangeText={setName}
-                      autoFocus={visible} 
-                      returnKeyType="done"
-                      onSubmitEditing={handleCreate}
+                  <CustomInput
+                    label="Nome da Carteira"
+                    leftIcon="account-balance-wallet"
+                    placeholder="Ex: Nubank, Física, Investimentos..."
+                    value={name}
+                    onChangeText={setName}
+                    autoFocus={true}
+                    returnKeyType="done"
+                    onSubmitEditing={handleCreate}
                   />
 
-                  <TouchableOpacity 
-                      style={[styles.createButton, { backgroundColor: colors.primary }]} 
-                      onPress={handleCreate}
-                      disabled={loading}
-                      activeOpacity={0.8}
-                  >
-                      {loading ? (
-                          <ActivityIndicator color="#FFF" />
-                      ) : (
-                          <Text style={styles.createButtonText}>Criar Carteira</Text>
-                      )}
-                  </TouchableOpacity>
+                  <PrimaryButton
+                    title="Criar Carteira"
+                    onPress={handleCreate}
+                    isLoading={loading}
+                    style={{ marginTop: 24 }}
+                  />
 
               </View>
             </TouchableWithoutFeedback>
@@ -164,23 +165,22 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end', 
   },
   modalContent: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    // paddingBottom estático foi removido daqui e passado para o inline style
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 24,
+    paddingTop: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
+    shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 20,
   },
   handleBar: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
+    width: 48,
+    height: 5,
+    borderRadius: 3,
     alignSelf: 'center',
     marginBottom: 20,
-    opacity: 0.5
   },
   header: {
     flexDirection: 'row',
@@ -189,33 +189,18 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: -0.5,
   },
   closeBtn: {
     padding: 4,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    marginBottom: 32, 
-  },
-  createButton: {
-    paddingVertical: 16,
-    borderRadius: 12,
+  closeIconBg: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
-    elevation: 2, 
-  },
-  createButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
+    justifyContent: 'center',
   },
 });
