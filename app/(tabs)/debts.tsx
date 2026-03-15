@@ -157,10 +157,7 @@ export default function DebtsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} translucent backgroundColor="transparent" />
       
-      <MainHeader 
-        activeWallet={activeWallet}
-        onWalletChange={fetchData} 
-      />
+      <MainHeader activeWallet={activeWallet} onWalletChange={fetchData} />
 
       <View style={styles.headerSection}>
         <View style={styles.compactFilterRow}>
@@ -169,13 +166,12 @@ export default function DebtsScreen() {
               const isActive = activeTab === tab;
               const tabColor = tab === "payable" ? PAYABLE_COLOR : RECEIVABLE_COLOR;
               const tabBg = isActive ? tabColor : colors.card;
-              const tabBorder = isActive ? tabColor : colors.border;
               const tabTextColor = isActive ? "#FFF" : colors.textSub;
 
               return (
                 <TouchableOpacity
                   key={tab}
-                  style={[styles.miniTab, { backgroundColor: tabBg, borderColor: tabBorder }]}
+                  style={[styles.miniTab, { backgroundColor: tabBg, borderColor: isActive ? tabColor : colors.border }]}
                   onPress={() => setActiveTab(tab as any)}
                 >
                   <Text style={[styles.miniTabText, { color: tabTextColor }]}>
@@ -199,46 +195,28 @@ export default function DebtsScreen() {
         <FlashList
           data={filteredDebts}
           keyExtractor={(item) => item.id}
-          // @ts-ignore
-          estimatedItemSize={200} // Aumentei um pouco a estimativa baseada no novo design do card
+          // @ts-ignore@
+          estimatedItemSize={120}
           extraData={[hideValues, isDark, activeTab]}
           contentContainerStyle={[styles.listPadding, { paddingBottom: Math.max(insets.bottom + 80, 120) }]}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialIcons name="search-off" size={40} color={colors.textSub} />
-              <Text style={[styles.emptyText, { color: colors.textSub }]}>Nenhum registro encontrado.</Text>
-            </View>
-          }
           renderItem={({ item }) => {
             const total = Number(item.amount);
             const paid = Number(item.totalPaid || (item as any)._raw.total_paid || 0);
-            const pending = total - paid;
-            
-            // Usamos a opacidade/ocultação de valor caso o hideValues esteja ativo
-            const displayTotal = hideValues ? 0 : total; // No card podemos ajustar isso depois se quiser censurar, 
-            const displayPending = hideValues ? 0 : pending; // mas por hora vamos passar os valores reais para a barra de progresso funcionar
-            
             return (
-              <TouchableOpacity 
-                 activeOpacity={0.9} 
-                 onPress={() => router.push({ pathname: "/EditDebt", params: { id: item.id } })}
-              >
-                {/* Aqui está o nosso novo componente fazendo todo o trabalho pesado! */}
-                <DebtItem
-                  type={item.type === 'payable' ? 'debt' : 'loan'}
-                  title={item.title}
-                  description={item.entityName || "Particular"}
-                  totalValue={total} 
-                  remainingValue={pending}
-                  dueDate={item.dueDate || (item as any)._raw.due_date}
-                  createdAt={item.createdAt || (item as any)._raw.created_at}
-                  onPay={() => { 
-                    setSelectedDebt(item); 
-                    setAmountRaw(""); 
-                    setDepositModalVisible(true); 
-                  }}
-                />
-              </TouchableOpacity>
+              <DebtItem
+                type={item.type === 'payable' ? 'debt' : 'loan'}
+                title={item.title}
+                description={item.entityName || "Particular"}
+                totalValue={total} 
+                remainingValue={total - paid}
+                dueDate={item.dueDate || (item as any)._raw.due_date}
+                createdAt={item.createdAt || (item as any)._raw.created_at}
+                onPay={() => { 
+                  setSelectedDebt(item); 
+                  setAmountRaw(""); 
+                  setDepositModalVisible(true); 
+                }}
+              />
             );
           }}
         />

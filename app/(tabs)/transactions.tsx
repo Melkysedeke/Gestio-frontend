@@ -206,7 +206,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 11,
     fontWeight: '800',
-    marginTop: 12,
     marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.5

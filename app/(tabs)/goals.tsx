@@ -1,39 +1,35 @@
 import React, { useState, useCallback, useMemo } from 'react'; 
 import { 
-  View, Text, StyleSheet, TouchableOpacity, 
-  StatusBar, RefreshControl, Modal, TextInput, 
-  ActivityIndicator, KeyboardAvoidingView, Platform, Alert, TouchableWithoutFeedback, Keyboard 
+  View, Text, StyleSheet, StatusBar, RefreshControl, Modal, TextInput, 
+  ActivityIndicator, KeyboardAvoidingView, Platform, Alert, TouchableWithoutFeedback, Keyboard, TouchableOpacity 
 } from 'react-native';
 
-// 🚀 Trocado SafeAreaView por View comum + hook insets
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useFocusEffect, router } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { Q } from '@nozbe/watermelondb';
 import { FlashList } from '@shopify/flash-list';
+import * as Haptics from 'expo-haptics';
 
-// Banco de Dados, Models e Stores
+// Banco de Dados e Stores
 import { database } from '../../src/database';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useThemeColor } from '@/hooks/useThemeColor';
-// 🚀 syncData removido das importações pois o RootLayout já gerencia isso
 import Goal from '../../src/database/models/Goal';
 import Wallet from '../../src/database/models/Wallet';
 
 // Componentes
 import MainHeader from '../../components/MainHeader';
+import GoalItem from '../../components/GoalItem';
 
 export default function GoalsScreen() {
-  const { user } = useAuthStore();
-  const hideValues = useAuthStore(state => state.hideValues);
-  
+  const { user, hideValues, hapticsEnabled } = useAuthStore();
   const { colors, isDark } = useThemeColor();
   const insets = useSafeAreaInsets();
 
   const [goals, setGoals] = useState<Goal[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
-  
-  const [loading, setLoading] = useState(true); // 🚀 Adicionado para evitar tela piscando vazia
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const [actionModalVisible, setActionModalVisible] = useState(false);
@@ -43,16 +39,10 @@ export default function GoalsScreen() {
   const [amountRaw, setAmountRaw] = useState(''); 
   const [submitting, setSubmitting] = useState(false);
 
-  // Constantes de tema pré-calculadas
+  // Cores de apoio para a Screen
   const THEME_COLOR = colors.primary;
   const SUCCESS_COLOR = colors.success; 
   const DANGER_COLOR = colors.danger; 
-
-  const iconBgColor = isDark ? 'rgba(23, 115, 207, 0.1)' : '#f0f9ff';
-  const completedBadgeBg = isDark ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4';
-  const guardarBtnBg = isDark ? 'rgba(56, 189, 248, 0.1)' : '#f0f9ff';
-  const infoBadgeBg = isDark ? '#1e293b' : '#f1f5f9';
-  const amountWrapperBg = isDark ? '#1e293b' : '#f8fafc';
 
   const formatDisplayCurrency = useCallback((val: number) => {
     if (hideValues) return "R$ •••••";
@@ -60,29 +50,28 @@ export default function GoalsScreen() {
   }, [hideValues]);
 
   const fetchData = useCallback(async () => {
-    if (!user?.id) return;
-    if (!loading) setRefreshing(true);
+  if (!user?.id) return;
+  if (!loading) setRefreshing(true); // O ESLint reclamava da falta do 'loading' aqui
 
-    try {
-      const allWallets = await database.get<Wallet>('wallets').query().fetch();
-      setWallets(allWallets);
-      const activeId = user?.settings?.last_opened_wallet || allWallets[0]?.id;
+  try {
+    const allWallets = await database.get<Wallet>('wallets').query().fetch();
+    setWallets(allWallets);
+    const activeId = user?.settings?.last_opened_wallet || allWallets[0]?.id;
 
-      if (activeId) {
-        const goalRes = await database.get<Goal>('goals')
-          .query(Q.where('wallet_id', activeId))
-          .fetch();
-        setGoals(goalRes);
-      }
-    } catch (error) {
-      console.error("Erro goals:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+    if (activeId) {
+      const goalRes = await database.get<Goal>('goals')
+        .query(Q.where('wallet_id', activeId))
+        .fetch();
+      setGoals(goalRes);
     }
-  }, [user?.id, user?.settings?.last_opened_wallet]);
+  } catch (error) {
+    console.error("Erro goals:", error);
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+}, [user?.id, user?.settings?.last_opened_wallet, loading]);
 
-  // 🚀 Apenas 1 useFocusEffect, chamando direto o banco local
   useFocusEffect(
     useCallback(() => { 
       fetchData(); 
@@ -92,6 +81,10 @@ export default function GoalsScreen() {
   const totalSaved = useMemo(() => {
     return goals.reduce((acc, g) => acc + Number(g.currentAmount || (g as any)._raw.current_amount || 0), 0);
   }, [goals]);
+
+  const triggerHaptic = () => {
+    if (hapticsEnabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
   const handleOpenAction = (goal: Goal, type: 'deposit' | 'withdraw') => {
     setSelectedGoal(goal);
@@ -112,7 +105,9 @@ export default function GoalsScreen() {
     if (!val || val <= 0 || !selectedGoal) return;
 
     const currentGoalAmount = Number(selectedGoal.currentAmount || (selectedGoal as any)._raw.current_amount || 0);
+    
     if (actionType === 'withdraw' && val > currentGoalAmount) {
+      triggerHaptic();
       return Alert.alert('Aviso', 'Saldo insuficiente no objetivo.');
     }
     
@@ -143,9 +138,9 @@ export default function GoalsScreen() {
         });
       });
 
+      if (hapticsEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setActionModalVisible(false);
       fetchData(); 
-      Alert.alert('Sucesso', 'Operação realizada!');
     } catch (error) {
       console.error(error);
       Alert.alert('Erro', 'Falha na operação.');
@@ -163,23 +158,23 @@ export default function GoalsScreen() {
   }
 
   return (
-    // 🚀 Container Edge-to-Edge sem SafeAreaView raiz
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} translucent backgroundColor="transparent" />
       
-      <MainHeader 
-        activeWallet={activeWallet}
-        onWalletChange={fetchData} 
-      />
+      <MainHeader activeWallet={activeWallet} onWalletChange={fetchData} />
 
       <View style={styles.headerSection}>
         <View style={styles.compactFilterRow}>
+          {/* Sincronizado com o estilo de Debts */}
           <View style={styles.headerInfoGroup}>
-             <MaterialIcons name="flag" size={18} color={THEME_COLOR} />
+             <View style={[styles.iconIndicator, { backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#f0f9ff' }]}>
+                <MaterialIcons name="flag" size={14} color={THEME_COLOR} />
+             </View>
              <Text style={[styles.headerLabel, { color: colors.text }]}>Meus Objetivos</Text>
           </View>
+
           <View style={[styles.compactSummary, { backgroundColor: colors.card, borderColor: colors.border }]}>
-             <Text style={[styles.summaryLabel, { color: colors.textSub }]}>Total: </Text>
+             <Text style={[styles.summaryMiniLabel, { color: colors.textSub }]}>Total: </Text>
              <Text style={[styles.summaryMiniValue, { color: SUCCESS_COLOR }]}>
                 {formatDisplayCurrency(totalSaved)}
              </Text>
@@ -188,98 +183,27 @@ export default function GoalsScreen() {
       </View>
 
       <View style={styles.listWrapper}>
-        <FlashList<Goal>
+        <FlashList
           data={goals}
           keyExtractor={(item) => item.id}
-          // @ts-ignore - Ignorando erro do TypeScript com Models do WatermelonDB
-          estimatedItemSize={160}
+          // @ts-ignore
+          estimatedItemSize={120}
           extraData={[hideValues, isDark]}
-          // 🚀 Respeita o fundo da tela na rolagem
           contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom + 80, 120) }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchData} tintColor={THEME_COLOR} />}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialIcons name="search-off" size={40} color={colors.textSub} />
-              <Text style={[styles.emptyText, { color: colors.textSub }]}>Nenhum objetivo definido.</Text>
-            </View>
-          }
-          renderItem={({ item }) => {
-            const current = Number(item.currentAmount || (item as any)._raw.current_amount || 0);
-            const target = Number(item.targetAmount || (item as any)._raw.target_amount || 0);
-            const progress = target > 0 ? Math.min((current / target) * 100, 100) : 0;
-            const isCompleted = progress >= 100;
-            
-            const createdAt = new Date(item.createdAt || (item as any)._raw.created_at || Date.now());
-            const deadline = new Date(item.deadline || (item as any)._raw.deadline);
-
-            return (
-              <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <TouchableOpacity 
-                  activeOpacity={0.7}
-                  onPress={() => router.push({ pathname: '/EditGoal', params: { id: item.id } })}
-                >
-                  <View style={styles.cardHeader}>
-                    <View style={[styles.iconBox, { backgroundColor: iconBgColor }]}>
-                      <MaterialIcons name="savings" size={20} color={THEME_COLOR} />
-                    </View>
-                    <View style={styles.cardTitleContainer}>
-                        <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
-                        
-                        <View style={styles.datesColumn}>
-                          <View style={styles.dateRow}>
-                            <MaterialIcons name="calendar-today" size={10} color={colors.textSub} />
-                            <Text style={[styles.cardDate, { color: colors.textSub }]}>
-                              Criado em: {createdAt.toLocaleDateString('pt-BR')}
-                            </Text>
-                          </View>
-                          <View style={styles.dateRow}>
-                            <MaterialIcons name="flag" size={10} color={THEME_COLOR} />
-                            <Text style={[styles.cardDate, { color: colors.textSub }]}>
-                              Meta para: {deadline.toLocaleDateString('pt-BR')}
-                            </Text>
-                          </View>
-                        </View>
-                    </View>
-                    {isCompleted && (
-                      <View style={[styles.completedBadge, { backgroundColor: completedBadgeBg }]}>
-                          <Text style={[styles.completedText, { color: SUCCESS_COLOR }]}>Concluído</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={styles.progressContainer}>
-                    <View style={styles.progressLabelRow}>
-                        <Text style={[styles.progressPercentage, { color: THEME_COLOR }]}>{progress.toFixed(0)}%</Text>
-                        <Text style={[styles.progressValues, { color: colors.textSub }]}>
-                            {formatDisplayCurrency(current)} / {formatDisplayCurrency(target)}
-                        </Text>
-                    </View>
-                    <View style={[styles.progressBarBg, { backgroundColor: colors.border }]}>
-                        <View style={[styles.progressBarFill, { width: `${progress}%`, backgroundColor: isCompleted ? SUCCESS_COLOR : THEME_COLOR }]} />
-                    </View>
-                  </View>
-                </TouchableOpacity>
-
-                <View style={[styles.cardActions, { borderTopColor: colors.border }]}>
-                  <TouchableOpacity style={styles.actionButton} onPress={() => handleOpenAction(item, 'withdraw')}>
-                      <MaterialIcons name="remove-circle-outline" size={16} color={DANGER_COLOR} />
-                      <Text style={[styles.actionText, { color: DANGER_COLOR }]}>Resgatar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.actionButton, { backgroundColor: guardarBtnBg }]} onPress={() => handleOpenAction(item, 'deposit')}>
-                      <MaterialIcons name="add-circle-outline" size={16} color={THEME_COLOR} />
-                      <Text style={[styles.actionText, { color: THEME_COLOR }]}>Guardar</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          }}
+          renderItem={({ item }) => (
+            <GoalItem 
+              item={item as Goal}
+              onDeposit={(goal) => handleOpenAction(goal, 'deposit')}
+              onWithdraw={(goal) => handleOpenAction(goal, 'withdraw')}
+            />
+          )}
         />
       </View>
 
       <Modal visible={actionModalVisible} transparent animationType="fade" onRequestClose={() => setActionModalVisible(false)}>
         <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setActionModalVisible(false); }}>
           <View style={styles.modalOverlay}>
-            
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
               <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                 <View style={[styles.modalContentSmall, { backgroundColor: colors.card }]}>
@@ -287,19 +211,21 @@ export default function GoalsScreen() {
                       {actionType === 'deposit' ? 'Guardar Dinheiro' : 'Resgatar Valor'}
                     </Text>
                     
-                    <View style={[styles.infoBadge, { backgroundColor: infoBadgeBg }]}>
+                    <View style={[styles.infoBadge, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }]}>
                       <Text style={[styles.infoLabel, { color: colors.textSub }]}>
                         {actionType === 'deposit' ? 'Falta para a meta: ' : 'Saldo atual no objetivo: '}
                         <Text style={[styles.boldText, { color: colors.text }]}>
-                          {actionType === 'deposit' 
-                            ? (Number(selectedGoal?.targetAmount || 0) - Number(selectedGoal?.currentAmount || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                            : Number(selectedGoal?.currentAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                          {hideValues ? 'R$ •••••' : 
+                            (actionType === 'deposit' 
+                              ? (Number(selectedGoal?.targetAmount || 0) - Number(selectedGoal?.currentAmount || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                              : Number(selectedGoal?.currentAmount || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                            )
                           }
                         </Text>
                       </Text>
                     </View>
 
-                    <View style={[styles.amountWrapper, { backgroundColor: amountWrapperBg, borderColor: colors.border }]}>
+                    <View style={[styles.amountWrapper, { backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderColor: colors.border }]}>
                         <Text style={[styles.currencySymbol, { color: colors.textSub }]}>R$</Text>
                         <TextInput 
                           style={[styles.amountInput, { color: colors.text }]} 
@@ -314,14 +240,17 @@ export default function GoalsScreen() {
                         <TouchableOpacity style={styles.cancelBtn} onPress={() => setActionModalVisible(false)}>
                           <Text style={[styles.boldText, { color: colors.textSub }]}>Cancelar</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: actionType === 'deposit' ? THEME_COLOR : DANGER_COLOR }]} onPress={submitTransaction} disabled={submitting}>
+                        <TouchableOpacity 
+                          style={[styles.confirmBtn, { backgroundColor: actionType === 'deposit' ? THEME_COLOR : DANGER_COLOR }]} 
+                          onPress={submitTransaction} 
+                          disabled={submitting}
+                        >
                             {submitting ? <ActivityIndicator color="#FFF" /> : <Text style={styles.confirmText}>Confirmar</Text>}
                         </TouchableOpacity>
                     </View>
                 </View>
               </TouchableWithoutFeedback>
             </KeyboardAvoidingView>
-
           </View>
         </TouchableWithoutFeedback>
       </Modal>
@@ -331,44 +260,57 @@ export default function GoalsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' }, // 🚀 Estilo de Loading adicionado
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   headerSection: { paddingTop: 12, paddingBottom: 8 },
-  compactFilterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
-  headerInfoGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerLabel: { fontSize: 16, fontWeight: '800' },
-  compactSummary: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1 },
-  summaryLabel: { fontSize: 10, fontWeight: '700'},
+  compactFilterRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    paddingHorizontal: 16 
+  },
+  headerInfoGroup: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  iconIndicator: { 
+    width: 26, 
+    height: 26, 
+    borderRadius: 8, 
+    alignItems: 'center', 
+    justifyContent: 'center' 
+  },
+  headerLabel: { fontSize: 14, fontWeight: '800' },
+  compactSummary: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingHorizontal: 10, 
+    paddingVertical: 6, 
+    borderRadius: 10, 
+    borderWidth: 1 
+  },
+  summaryMiniLabel: { fontSize: 10, fontWeight: '700' }, // Corrigido aqui
   summaryMiniValue: { fontSize: 12, fontWeight: '900' },
   listWrapper: { flex: 1 },
   listContent: { paddingHorizontal: 16, paddingTop: 8 },
-  card: { borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1 },
-  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14, gap: 10 }, 
-  iconBox: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
-  cardTitleContainer: { flex: 1 },
-  cardTitle: { fontSize: 14, fontWeight: '700' },
-  datesColumn: { gap: 2, marginTop: 4 }, 
-  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 4 }, 
-  cardDate: { fontSize: 10 },
-  completedBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start' },
-  completedText: { fontSize: 10, fontWeight: 'bold' },
-  progressContainer: { marginBottom: 14 },
-  progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  progressPercentage: { fontSize: 14, fontWeight: '900' },
-  progressValues: { fontSize: 11 },
-  progressBarBg: { height: 8, borderRadius: 4, overflow: 'hidden' },
-  progressBarFill: { height: '100%', borderRadius: 4 },
-  cardActions: { flexDirection: 'row', gap: 10, borderTopWidth: 1, paddingTop: 12 },
-  actionButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, borderRadius: 10, gap: 6 },
-  actionText: { fontSize: 12, fontWeight: '800' },
   emptyContainer: { alignItems: 'center', marginTop: 80 },
   emptyText: { marginTop: 12, fontSize: 13, fontWeight: '500' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 },
+  modalOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.6)', 
+    justifyContent: 'center', 
+    padding: 24 
+  },
   modalContentSmall: { borderRadius: 24, padding: 24 },
   modalTitle: { fontSize: 18, fontWeight: '900', textAlign: 'center', marginBottom: 12 },
   infoBadge: { padding: 10, borderRadius: 12, marginBottom: 20, alignItems: 'center' },
   infoLabel: { fontSize: 12 },
   boldText: { fontWeight: 'bold' },
-  amountWrapper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1, height: 56, marginBottom: 24 },
+  amountWrapper: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    borderRadius: 16, 
+    borderWidth: 1, 
+    height: 56, 
+    marginBottom: 24 
+  },
   currencySymbol: { fontSize: 18, fontWeight: 'bold', marginRight: 6 },
   amountInput: { fontSize: 22, fontWeight: '900', minWidth: 100, textAlign: 'center' },
   modalButtonsRow: { flexDirection: 'row', gap: 12 },
