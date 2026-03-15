@@ -1,7 +1,17 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  Platform 
+} from 'react-native';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+
+// 🚀 Hooks de Estilo e Estado
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { useAuthStore } from '@/src/stores/authStore'; 
 
 interface DebtItemProps {
   type: 'debt' | 'loan';
@@ -15,13 +25,26 @@ interface DebtItemProps {
 }
 
 export default function DebtItem({ 
-  type, title, description, totalValue, remainingValue, dueDate, createdAt, onPay 
+  type, 
+  title, 
+  description, 
+  totalValue, 
+  remainingValue, 
+  dueDate, 
+  createdAt, 
+  onPay 
 }: DebtItemProps) {
   const { colors, isDark } = useThemeColor();
+  
+  // 🚀 Obtém o estado de visibilidade e haptics do seu Store
+  const hideValues = useAuthStore(state => state.hideValues);
+  const hapticsEnabled = useAuthStore(state => state.hapticsEnabled);
 
+  // Tratamento de Datas
   const safeDueDate = dueDate ? new Date(dueDate) : new Date();
   const safeCreatedAt = createdAt ? new Date(createdAt) : new Date();
 
+  // Lógica de Progresso
   const paidValue = totalValue - remainingValue;
   const progressPercentage = Math.max(0, Math.min(100, (paidValue / totalValue) * 100));
   
@@ -29,21 +52,44 @@ export default function DebtItem({
   const mainColor = isDebt ? '#f97316' : '#3b82f6';
   const bgIconColor = isDark ? `${mainColor}20` : `${mainColor}15`; 
 
-  const formatCurrency = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const formatShortDate = (date: Date) => date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  // 🚀 Formatador que respeita o estado do Store
+  const formatValue = (val: number) => {
+    if (hideValues) return 'R$ •••••';
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
 
+  const formatShortDate = (date: Date) => {
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  };
+
+  // Lógica de Vencimento
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const daysUntilDue = Math.ceil((safeDueDate.getTime() - today.getTime()) / (1000 * 3600 * 24));
+  
   let badgeText = `Vence ${formatShortDate(safeDueDate)}`;
   let badgeColor = colors.textSub;
 
-  if (daysUntilDue < 0 && remainingValue > 0) {
-    badgeText = 'Atrasado';
-    badgeColor = '#ef4444';
-  } else if (daysUntilDue <= 5 && remainingValue > 0) {
-    badgeText = `${daysUntilDue} dias`;
-    badgeColor = '#f59e0b';
+  if (remainingValue > 0) {
+    if (daysUntilDue < 0) {
+      badgeText = 'Atrasado';
+      badgeColor = '#ef4444';
+    } else if (daysUntilDue <= 5) {
+      badgeText = daysUntilDue === 0 ? 'Vence hoje' : `Em ${daysUntilDue} dias`;
+      badgeColor = '#f59e0b';
+    }
+  } else {
+    badgeText = 'Liquidado';
+    badgeColor = '#10b981';
   }
+
+  const handlePress = () => {
+    // 🚀 Respeita a configuração de haptics do usuário
+    if (hapticsEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    onPay();
+  };
 
   return (
     <View style={[styles.card, { 
@@ -62,7 +108,7 @@ export default function DebtItem({
       }),
     }]}>
       
-      {/* CABEÇALHO COMPACTO */}
+      {/* CABEÇALHO */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={[styles.iconBox, { backgroundColor: bgIconColor }]}>
@@ -84,14 +130,14 @@ export default function DebtItem({
         </View>
       </View>
 
-      {/* CORPO: VALORES E PROGRESSO MESCLADOS */}
+      {/* CORPO: VALORES E PROGRESSO */}
       <View style={styles.body}>
         <View style={styles.valueRow}>
           <Text style={[styles.remainingValue, { color: colors.text }]}>
-            {formatCurrency(remainingValue)}
+            {formatValue(remainingValue)}
           </Text>
           <Text style={[styles.totalValue, { color: colors.textSub }]}>
-             / {formatCurrency(totalValue)}
+             / {formatValue(totalValue)}
           </Text>
         </View>
 
@@ -105,28 +151,31 @@ export default function DebtItem({
             />
           </View>
           <Text style={[styles.progressText, { color: colors.textSub }]}>
-            {progressPercentage.toFixed(0)}%
+            {!hideValues ? `${progressPercentage.toFixed(0)}%` : '••%'}
           </Text>
         </View>
       </View>
 
-      {/* RODAPÉ ULTRA COMPACTO */}
+      {/* RODAPÉ */}
       <View style={[styles.footer, { borderTopColor: colors.border }]}>
         <Text style={[styles.createdAt, { color: colors.textSub }]}>
           Criado {formatShortDate(safeCreatedAt)}
         </Text>
         
         <TouchableOpacity 
-          style={[styles.button, { backgroundColor: remainingValue <= 0 ? (isDark ? '#334155' : '#e2e8f0') : mainColor }]} 
-          activeOpacity={0.8}
-          onPress={onPay}
+          style={[
+            styles.button, 
+            { backgroundColor: remainingValue <= 0 ? (isDark ? '#1e293b' : '#f1f5f9') : mainColor }
+          ]} 
+          activeOpacity={0.7}
+          onPress={handlePress}
           disabled={remainingValue <= 0}
         >
           {remainingValue <= 0 ? (
-            <Text style={[styles.buttonText, { color: colors.textSub }]}>Quitado</Text>
+            <Text style={[styles.buttonText, { color: colors.textSub, opacity: 0.6 }]}>Quitado</Text>
           ) : (
             <>
-              <FontAwesome5 name="hand-holding-usd" size={10} color="#fff" style={{ marginRight: 4 }} />
+              <FontAwesome5 name="hand-holding-usd" size={10} color="#fff" style={{ marginRight: 6 }} />
               <Text style={styles.buttonText}>Abater</Text>
             </>
           )}
@@ -138,20 +187,21 @@ export default function DebtItem({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 14, // Menos arredondado
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 12, // Padding ainda menor
-    marginVertical: 5,
+    padding: 12,
+    marginVertical: 6,
+    marginHorizontal: 2,
   },
   header: {
-    marginBottom: 10, // Espaço bem reduzido
+    marginBottom: 10,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   iconBox: {
-    width: 32, // Ícone mini
+    width: 32,
     height: 32,
     borderRadius: 8,
     alignItems: 'center',
@@ -181,7 +231,6 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 11,
     fontWeight: '500',
-    opacity: 0.8,
   },
   body: {
     marginBottom: 10, 
@@ -192,7 +241,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   remainingValue: {
-    fontSize: 16, // Fonte menor, mas ainda em destaque
+    fontSize: 16,
     fontWeight: '800',
     letterSpacing: -0.5,
   },
@@ -206,7 +255,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   progressBarBg: {
-    height: 4, // Barra super fina
+    height: 4,
     borderRadius: 2,
     flex: 1,
     overflow: 'hidden',
@@ -219,7 +268,7 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: 10,
     fontWeight: '600',
-    width: 28, // Fixa a largura para alinhar
+    width: 30,
     textAlign: 'right',
   },
   footer: {
@@ -227,23 +276,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: 8, // Padding mínimo no footer
+    paddingTop: 10,
   },
   createdAt: {
     fontSize: 10,
     fontWeight: '500',
-    opacity: 0.7,
   },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12, // Botão bem estreito
-    paddingVertical: 6, // Botão mais baixo
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 8,
   },
   buttonText: {
     color: '#fff',
-    fontSize: 11, // Texto do botão mini
+    fontSize: 11,
     fontWeight: '700',
   },
 });
