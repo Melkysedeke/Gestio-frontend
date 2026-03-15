@@ -15,7 +15,6 @@ import {
   Keyboard
 } from "react-native";
 
-// 🚀 Trocado SafeAreaView por View comum + hook de insets
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect, router } from "expo-router";
@@ -31,6 +30,7 @@ import Debt from '../../src/database/models/Debt';
 
 // Componentes
 import MainHeader from "../../components/MainHeader";
+import DebtItem from "../../components/DebtItem"; // <-- Importamos o novo componente aqui
 
 export default function DebtsScreen() {
   const { user } = useAuthStore();
@@ -51,7 +51,6 @@ export default function DebtsScreen() {
   const RECEIVABLE_COLOR = colors.success;
   const ACTIVE_TAB_COLOR = activeTab === "payable" ? PAYABLE_COLOR : RECEIVABLE_COLOR;
 
-  const paidBadgeBg = isDark ? 'rgba(34, 197, 94, 0.1)' : '#f0fdf4';
   const infoBadgeBg = isDark ? '#1e293b' : '#f1f5f9';
   const inputWrapperBg = isDark ? '#1e293b' : '#f8fafc';
 
@@ -80,7 +79,6 @@ export default function DebtsScreen() {
     }
   }, [user?.id, user?.settings?.last_opened_wallet]);
 
-  // 🚀 MUDANÇA: Lê apenas do banco local, sem forçar Sync extra!
   useFocusEffect(
     useCallback(() => {
       fetchData();
@@ -121,7 +119,7 @@ export default function DebtsScreen() {
 
         await selectedDebt.update((d: any) => {
           d.totalPaid = newTotalPaid;
-          d.isPaid = newTotalPaid >= totalAmount - 0.009;
+          d.isPaid = newTotalPaid >= totalAmount - 0.009; 
           if (d.isPaid) d.paidAt = Date.now();
         });
 
@@ -156,11 +154,9 @@ export default function DebtsScreen() {
   const activeWallet = wallets.find((w) => w.id === user?.settings?.last_opened_wallet) || wallets[0];
 
   return (
-    // 🚀 Container Edge-to-Edge
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} translucent backgroundColor="transparent" />
       
-      {/* 🚀 MainHeader cuida do SafeAreaView do topo */}
       <MainHeader 
         activeWallet={activeWallet}
         onWalletChange={fetchData} 
@@ -203,8 +199,8 @@ export default function DebtsScreen() {
         <FlashList
           data={filteredDebts}
           keyExtractor={(item) => item.id}
-          // @ts-ignore - Ignora erro falso do TS com models do WatermelonDB
-          estimatedItemSize={130}
+          // @ts-ignore
+          estimatedItemSize={200} // Aumentei um pouco a estimativa baseada no novo design do card
           extraData={[hideValues, isDark, activeTab]}
           contentContainerStyle={[styles.listPadding, { paddingBottom: Math.max(insets.bottom + 80, 120) }]}
           ListEmptyComponent={
@@ -217,73 +213,31 @@ export default function DebtsScreen() {
             const total = Number(item.amount);
             const paid = Number(item.totalPaid || (item as any)._raw.total_paid || 0);
             const pending = total - paid;
-            const progress = total > 0 ? Math.min(paid / total, 1) : 0;
-            const isFinished = item.isPaid || (item as any)._raw.is_paid;
             
-            const createdAt = new Date(item.createdAt || (item as any)._raw.created_at || Date.now());
-            const dueDate = new Date(item.dueDate || (item as any)._raw.due_date);
-            const isOverdue = !isFinished && dueDate < new Date(new Date().setHours(0, 0, 0, 0));
-
-            const cardBorderColor = isOverdue ? colors.danger : colors.border;
-            const dateColor = isOverdue ? colors.danger : colors.textSub;
-
+            // Usamos a opacidade/ocultação de valor caso o hideValues esteja ativo
+            const displayTotal = hideValues ? 0 : total; // No card podemos ajustar isso depois se quiser censurar, 
+            const displayPending = hideValues ? 0 : pending; // mas por hora vamos passar os valores reais para a barra de progresso funcionar
+            
             return (
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => router.push({ pathname: "/EditDebt", params: { id: item.id } })}
-                style={[styles.card, { backgroundColor: colors.card, borderColor: cardBorderColor }]}
+              <TouchableOpacity 
+                 activeOpacity={0.9} 
+                 onPress={() => router.push({ pathname: "/EditDebt", params: { id: item.id } })}
               >
-                <View style={styles.cardHeader}>
-                  <View style={styles.cardHeaderLeft}>
-                    <Text style={[styles.debtTitle, { color: colors.text }]} numberOfLines={1}>{item.title}</Text>
-                    <Text style={[styles.entityName, { color: colors.textSub }]}>{item.entityName || "Particular"}</Text>
-                  </View>
-                  <View style={styles.cardHeaderRight}>
-                    <Text style={[styles.amount, { color: ACTIVE_TAB_COLOR }]}>
-                        {formatDisplayCurrency(total)}
-                    </Text>
-                    <Text style={[styles.pendingMini, { color: colors.textSub }]}>
-                        Falta: {formatDisplayCurrency(pending)}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.progressContainer}>
-                  <View style={[styles.progressBg, { backgroundColor: colors.border }]}>
-                    <View style={[styles.progressFill, { width: `${progress * 100}%`, backgroundColor: ACTIVE_TAB_COLOR }]} />
-                  </View>
-                  <Text style={[styles.progressText, { color: colors.textSub }]}>{Math.round(progress * 100)}%</Text>
-                </View>
-
-                <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
-                  <View style={styles.datesColumn}>
-                    <View style={styles.dateRow}>
-                      <MaterialIcons name="calendar-today" size={11} color={colors.textSub} />
-                      <Text style={[styles.dateText, { color: colors.textSub }]}>
-                        Criado: {createdAt.toLocaleDateString("pt-BR")}
-                      </Text>
-                    </View>
-                    <View style={styles.dateRow}>
-                      <MaterialIcons name="event" size={12} color={dateColor} />
-                      <Text style={[styles.dateText, { color: dateColor }]}>
-                        {isOverdue ? "Atrasado" : "Vence"}: {dueDate.toLocaleDateString("pt-BR")}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {isFinished ? (
-                    <View style={[styles.paidBadge, { backgroundColor: paidBadgeBg }]}>
-                      <Text style={[styles.paidText, { color: colors.success }]}>Concluído</Text>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      style={[styles.payBtn, { backgroundColor: colors.primary }]}
-                      onPress={(e) => { e.stopPropagation(); setSelectedDebt(item); setAmountRaw(""); setDepositModalVisible(true); }}
-                    >
-                      <Text style={styles.payBtnText}>Abater</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
+                {/* Aqui está o nosso novo componente fazendo todo o trabalho pesado! */}
+                <DebtItem
+                  type={item.type === 'payable' ? 'debt' : 'loan'}
+                  title={item.title}
+                  description={item.entityName || "Particular"}
+                  totalValue={total} 
+                  remainingValue={pending}
+                  dueDate={item.dueDate || (item as any)._raw.due_date}
+                  createdAt={item.createdAt || (item as any)._raw.created_at}
+                  onPay={() => { 
+                    setSelectedDebt(item); 
+                    setAmountRaw(""); 
+                    setDepositModalVisible(true); 
+                  }}
+                />
               </TouchableOpacity>
             );
           }}
@@ -342,26 +296,6 @@ const styles = StyleSheet.create({
   summaryMiniValue: { fontSize: 12, fontWeight: '900' },
   listWrapper: { flex: 1 },
   listPadding: { paddingHorizontal: 16, paddingTop: 8 },
-  card: { borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1 },
-  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  cardHeaderLeft: { flex: 1 },
-  cardHeaderRight: { alignItems: "flex-end" },
-  debtTitle: { fontSize: 14, fontWeight: "700" },
-  entityName: { fontSize: 11, marginTop: 2 },
-  amount: { fontSize: 15, fontWeight: "900" },
-  pendingMini: { fontSize: 10, fontWeight: '600', marginTop: 2 },
-  progressContainer: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 10 },
-  progressBg: { flex: 1, height: 6, borderRadius: 3 },
-  progressFill: { height: "100%", borderRadius: 3 },
-  progressText: { fontSize: 10, fontWeight: "bold", width: 30 },
-  cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTopWidth: 1 },
-  datesColumn: { gap: 4, justifyContent: 'center' }, 
-  dateRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  dateText: { fontSize: 11, fontWeight: '600' },
-  paidBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  paidText: { fontSize: 10, fontWeight: "bold" },
-  payBtn: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 8 },
-  payBtnText: { color: "#FFF", fontSize: 11, fontWeight: "bold" },
   emptyContainer: { alignItems: 'center', marginTop: 80 },
   emptyText: { marginTop: 12, fontSize: 13, fontWeight: '500' },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", padding: 24 },
