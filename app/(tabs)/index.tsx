@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scrollContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 100, gap: 12 },
   
-  balanceCard: { width: '100%', borderRadius: 20, padding: 20, elevation: 6, overflow: 'hidden' },
+  balanceCard: { width: '100%', borderRadius: 20, padding: 20, elevation: 6, overflow: 'hidden', marginTop: 4 },
   bgIcon: { position: 'absolute', right: -15, bottom: -15, transform: [{ rotate: '-10deg' }] },
   balanceHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
   balanceLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '600' },

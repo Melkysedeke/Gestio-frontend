@@ -42,7 +42,7 @@ export default function MonthlyReport({ walletId, selectedMonth, updateTrigger }
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [totalExpense, setTotalExpense] = useState(0);
   
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const toggleExpand = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);

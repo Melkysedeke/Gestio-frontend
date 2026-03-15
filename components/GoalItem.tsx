@@ -154,10 +154,10 @@ const styles = StyleSheet.create({
     alignItems: 'center' 
   },
   cardTitle: { 
-    fontSize: 13, 
+    fontSize: 14, 
     fontWeight: '600',
     flex: 1,
-    marginRight: 8
+    marginRight: 10
   },
   deadlineText: { 
     fontSize: 10, 
